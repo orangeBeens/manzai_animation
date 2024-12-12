@@ -1,0 +1,21 @@
+.
+├── main.dart
+├── models
+│   ├── character.dart
+│   └── manzai_script.dart
+├── providers
+│   ├── charactor_providers.dart
+│   └── script_provider.dart
+├── repositories
+│   └── script_reppsitory.dart
+├── services
+│   └── script_service.dart
+└── ui
+    ├── pages
+    │   ├── home_screen.dart
+    │   └── script_edit_page.dart
+    ├── theme
+    │   └── app_theme.dart
+    └── widgets
+        ├── character_selector.dart
+        └── script_form.dart

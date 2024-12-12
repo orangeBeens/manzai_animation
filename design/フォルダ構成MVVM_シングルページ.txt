@@ -1,0 +1,32 @@
+lib/
+├── main.dart
+├── core/
+│   ├── constants/
+│   │   └── asset_paths.dart          # 画像パスなどの定数
+│   ├── enums/
+│   │   ├── character_type.dart       # ボケ/ツッコミの列挙型
+│   │   ├── expression_type.dart      # 表情の列挙型
+│   │   └── speed_type.dart          # スピードの列挙型
+│   └── services/
+│       └── video_generator_service.dart  # 動画生成サービス
+│
+├── models/
+│   ├── character.dart               # キャラクター設定のモデル
+│   ├── script_line.dart            # 台本の1行分のモデル
+│   └── manzai_script.dart          # 台本全体のモデル
+│
+├── views/
+│   └── script_editor/
+│       ├── script_editor_view.dart           # メインの台本編集画面
+│       └── widgets/
+│           ├── character_selector.dart        # キャラクター選択ウィジェット
+│           ├── script_line_editor.dart        # 台本1行の編集ウィジェット
+│           ├── expression_selector.dart       # 表情選択ウィジェット
+│           └── timing_speed_selector.dart     # 間とスピード選択ウィジェット
+│
+└── viewmodels/
+    └── script_editor/
+        ├── script_editor_viewmodel.dart      # メイン画面のViewModel
+        └── states/
+            ├── script_editor_state.dart      # 状態管理用のState
+            └── script_editor_event.dart      # イベント管理用のState

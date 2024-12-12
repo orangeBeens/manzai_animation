@@ -1,26 +1,22 @@
 import 'package:flutter/material.dart';
-import 'screens/title_screen.dart';
-import 'screens/creation_screen.dart';
-import 'screens/manzai_list_screen.dart';
-import 'screens/playback_screen.dart';
-import 'screens/youtube_share_screen.dart';
+import 'views/script_editor_view.dart';
 
 void main() {
-  runApp(const MangaCreatorApp());
+  runApp(const MyApp());
 }
 
-class MangaCreatorApp extends StatelessWidget {
-  const MangaCreatorApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '漫才作成アプリ',
+      title: '漫才編集台本',
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        useMaterial3: true,
       ),
-      home: const TitleScreen(),
+      home: const ScriptEditorView(),
     );
   }
 }

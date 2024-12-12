@@ -36,6 +36,18 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flutter_tts: ^3.8.5
+  flutter_riverpod: ^2.6.1
+  shared_preferences: ^2.3.3
+  localstorage: ^5.0.0
+  file_picker: ^8.1.4
+  ffmpeg_kit_flutter_full: ^6.0.3
+  path_provider: ^2.1.5
+  intl: ^0.20.1
+  ffmpeg_kit_flutter: ^6.0.3
+  video_player: ^2.9.2
+  video_player_web: ^2.3.3
+  provider: ^6.1.2
+
 
 dev_dependencies:
   flutter_test:
@@ -59,8 +71,6 @@ flutter:
   assets:
     - assets/images/
     - assets/images/character/
-    - assets/images/character/moeko/
-    - assets/images/character/akari/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
