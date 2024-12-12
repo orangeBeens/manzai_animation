@@ -1,0 +1,15 @@
+lib/
+├── models/
+│   ├── character.dart
+│   ├── manzai_script.dart
+│   └── script_line.dart
+├── views/
+│   ├── home_screen.dart
+│   └── script_edit_page.dart
+├── controllers/
+│   ├── character_controller.dart
+│   └── script_controller.dart
+├── widgets/
+│   ├── character_selector.dart
+│   └── script_form.dart
+└── main.dart

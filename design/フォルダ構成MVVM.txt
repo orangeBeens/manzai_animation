@@ -1,0 +1,15 @@
+lib/
+├── models/
+│   ├── character.dart
+│   ├── manzai_script.dart
+│   └── script_line.dart
+├── viewmodels/
+│   ├── character_viewmodel.dart
+│   └── script_viewmodel.dart
+├── views/
+│   ├── home_screen.dart
+│   └── script_edit_page.dart
+├── widgets/
+│   ├── character_selector.dart
+│   └── script_form.dart
+└── main.dart
