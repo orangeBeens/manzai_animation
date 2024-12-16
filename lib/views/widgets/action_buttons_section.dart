@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/script_editor_viewmodel.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io' show Platform;
 
 class ActionButtonsSection extends StatelessWidget {
   const ActionButtonsSection({Key? key}) : super(key: key);
@@ -34,10 +36,30 @@ class ActionButtonsSection extends StatelessWidget {
         //動画生成ボタン
         Expanded(
           child: ElevatedButton(
-            onPressed: () async {
-              await viewModel.exportCsv();
-              // 他の動画生成処理
-            },
+            onPressed: viewModel.isGenerating 
+              ? null  // 生成中は押せないように
+              : () async {
+                  try {
+                    // 権限チェック（Android用）
+                    if (Platform.isAndroid) {
+                      final status = await Permission.storage.request();
+                      if (!status.isGranted) return;
+                    }
+                    
+                    // 動画生成開始
+                    await viewModel.generateVideo();
+                    
+                    // 成功通知
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('動画を生成しました！')),
+                    );
+                  } catch (e) {
+                    // エラー通知
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('エラーが発生しました: $e')),
+                    );
+                  }
+                },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pink, 
               foregroundColor: Colors.white,

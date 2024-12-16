@@ -20,6 +20,15 @@ class _CharacterSelectState extends State<CharacterSelect> {
   final List<String> characterImages = [
     'assets/images/character/kojo.png',
     'assets/images/character/loveo.png',
+    'assets/images/character/machida.png',
+    'assets/images/character/mojiko.png',
+    'assets/images/character/sogekingu.png',
+    'assets/images/character/udeita.png',
+    'assets/images/character/nami.png',
+    'assets/images/character/mathnee.png',
+    'assets/images/character/Ronaldo.png',
+    'assets/images/character/mike.png',
+    'assets/images/character/ojii.png',
   ];
 
   @override

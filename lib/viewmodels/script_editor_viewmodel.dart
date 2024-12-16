@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:html' as html;
+import 'dart:convert';
+import 'package:path_provider/path_provider.dart';
+import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
+import 'dart:ui' as ui;
+import 'dart:io';
 import '../models/video_generator.dart';
 import '../models/video_config.dart';
 import '../models/script_line.dart';
-import 'dart:html' as html;
-import 'dart:convert';
+
 
 
 class ScriptEditorViewModel extends ChangeNotifier {
@@ -24,6 +29,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   // 動画生成に関する状態管理
   final VideoGenerator _videoGenerator = VideoGenerator();
   bool _isGenerating = false;      // 生成中フラグ
+  double _generationProgress = 0.0; //生成プログレス
   String? _errorMessage;           // エラーメッセージ
   String? _generatedVideoPath;     // 生成された動画のパス
 
@@ -52,6 +58,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   String get bokeName => _bokeName;
   String get tsukkomiName => _tsukkomiName;
   String get combiName => _combiName;
+  double get generationProgress => _generationProgress;
 
   // セッター: 値の更新と画面の再描画を一緒に行う
   void setSelectedCharacterType(String type) {
@@ -129,35 +136,6 @@ class ScriptEditorViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 動画生成メソッド
-  Future<void> generateVideo() async {
-    try {
-      _isGenerating = true;
-      _errorMessage = null;
-      _generatedVideoPath = null;
-      notifyListeners();
-
-      final config = VideoConfig(
-        combiName: _combiName,
-        bokeName: _bokeName,
-        tsukkomiName: _tsukkomiName,
-        bokeImagePath: _bokeImage,
-        tsukkomiImagePath: _tsukkomiImage,
-        scriptLines: _scriptLines,
-      );
-
-      final videoPath = await _videoGenerator.generate(config);
-      _generatedVideoPath = videoPath;
-      
-      _isGenerating = false;
-      notifyListeners();
-      
-    } catch (e) {
-      _errorMessage = e.toString();
-      _isGenerating = false;
-      notifyListeners();
-    }
-  }
   //台本csv保存メソッド
   Future<void> exportCsv() async {
     final csvContent = scriptLines.map((line) =>
@@ -173,5 +151,139 @@ class ScriptEditorViewModel extends ChangeNotifier {
       ..click();
 
     html.Url.revokeObjectUrl(url);
+  }
+
+  // 動画生成
+  Future<void> generateVideo() async {
+    if (_scriptLines.isEmpty) return;
+    
+    try {
+      _isGenerating = true;
+      notifyListeners();
+
+      final tempDir = await getTemporaryDirectory();
+      final framesPaths = <String>[];
+
+      // フレーム生成
+      for (var i = 0; i < _scriptLines.length; i++) {
+        _generationProgress = i / _scriptLines.length;
+        notifyListeners();
+
+        final frame = await _generateFrame(_scriptLines[i]);
+        final path = '${tempDir.path}/frame_$i.png';
+        
+        // フレームを保存
+        final byteData = await frame.toByteData(
+          format: ui.ImageByteFormat.png
+        );
+        await File(path).writeAsBytes(
+          byteData!.buffer.asUint8List()
+        );
+        
+        framesPaths.add(path);
+      }
+
+      // FFmpegで動画生成
+      final outputPath = '${await getApplicationDocumentsDirectory()}/manzai_${DateTime.now().millisecondsSinceEpoch}.mp4';
+      
+      await FFmpegKit.execute(
+        '-framerate 30 -i ${tempDir.path}/frame_%d.png '
+        '-c:v libx264 -pix_fmt yuv420p $outputPath'
+      );
+
+    } finally {
+      _isGenerating = false;
+      _generationProgress = 0.0;
+      notifyListeners();
+    }
+  }
+  Future<ui.Image> _generateFrame(ScriptLine line) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final size = const Size(1280, 720);
+
+    // 背景を白で描画
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Colors.white,
+    );
+
+    // キャラクター画像の描画（ボケとツッコミ）
+    if (_bokeImage != null || _tsukkomiImage != null) {
+      await _drawCharacters(canvas, size, line);
+    }
+
+    // セリフの描画
+    _drawDialog(canvas, size, line);
+
+    return recorder.endRecording().toImage(
+      size.width.toInt(),
+      size.height.toInt(),
+    );
+  }
+  Future<void> _drawCharacters(Canvas canvas, Size size, ScriptLine line) async {
+    final characterImage = line.characterType == 'ボケ' ? _bokeImage : _tsukkomiImage;
+    if (characterImage == null) return;
+
+    try {
+      final file = File(characterImage);
+      final bytes = await file.readAsBytes();
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      
+      final destRect = Rect.fromLTWH(
+        line.characterType == 'ボケ' ? 100 : size.width - 300,
+        size.height - 400,
+        200,
+        300,
+      );
+
+      canvas.drawImageRect(
+        frame.image,
+        Rect.fromLTWH(0, 0, frame.image.width.toDouble(), frame.image.height.toDouble()),
+        destRect,
+        Paint(),
+      );
+    } catch (e) {
+      debugPrint('キャラクター画像の描画エラー: $e');
+    }
+  }
+  void _drawDialog(Canvas canvas, Size size, ScriptLine line) {
+    final textSpan = TextSpan(
+      text: line.text,
+      style: const TextStyle(
+        color: Colors.black,
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout(maxWidth: size.width * 0.6);
+
+    // 吹き出しの背景
+    final bubbleRect = Rect.fromLTWH(
+      size.width * 0.2,
+      50,
+      size.width * 0.6,
+      textPainter.height + 40,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bubbleRect, const Radius.circular(20)),
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill
+        ..strokeWidth = 2,
+    );
+
+    // テキスト描画
+    textPainter.paint(
+      canvas,
+      Offset(size.width * 0.2 + 20, 70),
+    );
   }
 }
