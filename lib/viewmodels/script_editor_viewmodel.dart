@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';  // テキスト読み上げ用
+import 'package:flutter/services.dart';  // TextInputFormatter用
 import 'dart:html' as html;  // Web用の機能
 import 'dart:convert';  // 文字エンコーディング用
 import 'package:path_provider/path_provider.dart';  // ファイルパス取得用
@@ -73,17 +74,17 @@ class ScriptEditorViewModel extends ChangeNotifier {
 
   // === バリデーションメソッド ===
   // タイミングの値が適切な範囲内かチェック
-  bool _validateTiming(double timing) {
+  bool validateTiming(double timing) {
     return timing >= minTiming && timing <= maxTiming;
   }
 
   // スピードの値が適切な範囲内かチェック
-  bool _validateSpeed(double speed) {
+  bool validateSpeed(double speed) {
     return speed >= minSpeed && speed <= maxSpeed;
   }
 
   // テキストが空でないかチェック
-  bool _validateText(String text) {
+  bool validateText(String text) {
     return text.trim().isNotEmpty;
   }
 
@@ -98,7 +99,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
 
   // タイミングの設定
   void setSelectedTiming(double timing) {
-    if (_validateTiming(timing)) {
+    if (validateTiming(timing)) {
       _selectedTiming = timing;
       notifyListeners();
     }
@@ -106,7 +107,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
 
   // スピードの設定
   void setSelectedSpeed(double speed) {
-    if (_validateSpeed(speed)) {
+    if (validateSpeed(speed)) {
       _selectedSpeed = speed;
       notifyListeners();
     }
@@ -146,19 +147,19 @@ class ScriptEditorViewModel extends ChangeNotifier {
   /// @param speed 速度
   void editScriptLine(int index, String text, String characterType, double timing, double speed) {
     // 入力値のバリデーション
-    if (!_validateText(text)) {
+    if (!validateText(text)) {
       _errorMessage = 'セリフを入力してください';
       notifyListeners();
       return;
     }
 
-    if (!_validateTiming(timing)) {
+    if (!validateTiming(timing)) {
       _errorMessage = '間は $minTiming ~ $maxTiming の範囲で入力してください';
       notifyListeners();
       return;
     }
 
-    if (!_validateSpeed(speed)) {
+    if (!validateSpeed(speed)) {
       _errorMessage = 'スピードは $minSpeed ~ $maxSpeed の範囲で入力してください';
       notifyListeners();
       return;
@@ -225,6 +226,18 @@ class ScriptEditorViewModel extends ChangeNotifier {
   }
 
   // === 台本音声再生 ===
+  // 1行だけ再生
+  Future<void> playScriptLine(ScriptLine line) async {
+    try {
+      await _tts.setPitch(line.characterType == 'ボケ' ? 1.3 : 0.8);
+      await _tts.setSpeechRate(line.speed);
+      await _tts.speak(line.text);
+    } catch (e) {
+      _errorMessage = '音声再生に失敗しました';
+      notifyListeners();
+    }
+  }
+  // 台本全体の再生
   Future<void> playScript() async {
     for (var line in _scriptLines) {
       if (line.timing > 0) {
@@ -282,5 +295,228 @@ class ScriptEditorViewModel extends ChangeNotifier {
       ..click();
 
     html.Url.revokeObjectUrl(url);
+  }
+  // == 台本編集画面関連 ==
+  /// 削除確認ダイアログを表示
+  Future<void> showDeleteConfirmDialog(
+    BuildContext context,
+    ScriptEditorViewModel viewModel,
+    int index,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('確認'),
+        content: const Text('このセリフを削除してもよろしいですか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      viewModel.removeScriptLine(index);
+    }
+  }
+    /// 編集ダイアログを表示
+    Future<void> showEditDialog(
+      BuildContext context,
+      ScriptEditorViewModel viewModel,
+      ScriptLine line,
+      int index,
+    ) async {
+      // TextEditingControllerの初期化
+      final textController = TextEditingController(text: line.text);
+      final timingController = TextEditingController(text: line.timing.toString());
+      final speedController = TextEditingController(text: line.speed.toString());
+      String selectedType = line.characterType;
+
+      // TextEditingControllerのdispose用
+      bool isDialogClosed = false;
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('セリフを編集'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // キャラクター選択ドロップダウン
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    labelText: 'キャラクター',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'ボケ', child: Text('ボケ')),
+                    DropdownMenuItem(value: 'ツッコミ', child: Text('ツッコミ')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      selectedType = value;
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                // セリフ入力フィールド
+                TextField(
+                  controller: textController,
+                  decoration: const InputDecoration(
+                    labelText: 'セリフ',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                // 間（タイミング）入力フィールド
+                TextField(
+                  controller: timingController,
+                  decoration: InputDecoration(
+                    labelText: '間（秒）',
+                    helperText: '$minTiming ~ $maxTiming の範囲で入力',
+                    border: const OutlineInputBorder(),
+                    errorText: _validateTiming(timingController.text),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // スピード入力フィールド
+                TextField(
+                  controller: speedController,
+                  decoration: InputDecoration(
+                    labelText: 'スピード（x）',
+                    helperText: '$minSpeed ~ $maxSpeed の範囲で入力',
+                    border: const OutlineInputBorder(),
+                    errorText: _validateSpeed(speedController.text),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                isDialogClosed = true;
+                Navigator.pop(context);
+              },
+              child: const Text('キャンセル'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (validateForm(
+                  textController.text,
+                  timingController.text,
+                  speedController.text,
+                  context,
+                )) {
+                  // すべてのバリデーションをパスした場合のみ保存
+                  viewModel.editScriptLine(
+                    index,
+                    textController.text,
+                    selectedType,
+                    double.parse(timingController.text),
+                    double.parse(speedController.text),
+                  );
+                  isDialogClosed = true;
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ).then((_) {
+        // ダイアログが閉じられたときのクリーンアップ
+        if (!isDialogClosed) {
+          textController.dispose();
+          timingController.dispose();
+          speedController.dispose();
+        }
+      });
+    }
+  /// タイミングの値をバリデーション
+  String? _validateTiming(String value) {
+    if (value.isEmpty) {
+      return '値を入力してください';
+    }
+    try {
+      final timing = double.parse(value);
+      if (timing < minTiming || timing > maxTiming) {
+        return '$minTiming ~ $maxTiming の範囲で入力してください';
+      }
+    } catch (e) {
+      return '正しい数値を入力してください';
+    }
+    return null;
+  }
+
+  /// スピードの値をバリデーション
+  String? _validateSpeed(String value) {
+    if (value.isEmpty) {
+      return '値を入力してください';
+    }
+    try {
+      final speed = double.parse(value);
+      if (speed < minSpeed || speed > maxSpeed) {
+        return '$minSpeed ~ $maxSpeed の範囲で入力してください';
+      }
+    } catch (e) {
+      return '正しい数値を入力してください';
+    }
+    return null;
+  }
+
+  /// フォーム全体のバリデーション
+  bool validateForm(
+    String text,
+    String timing,
+    String speed,
+    BuildContext context,
+  ) {
+    if (text.trim().isEmpty) {
+      showError(context, 'セリフを入力してください');
+      return false;
+    }
+
+    final timingError = _validateTiming(timing);
+    if (timingError != null) {
+      showError(context, timingError);
+      return false;
+    }
+
+    final speedError = _validateSpeed(speed);
+    if (speedError != null) {
+      showError(context, speedError);
+      return false;
+    }
+
+    return true;
+  }
+
+  /// エラーメッセージを表示
+  void showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 }
