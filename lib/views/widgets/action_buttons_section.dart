@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/script_editor_viewmodel.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'dart:io' show Platform;
+
 
 class ActionButtonsSection extends StatelessWidget {
   const ActionButtonsSection({Key? key}) : super(key: key);
@@ -13,7 +12,7 @@ class ActionButtonsSection extends StatelessWidget {
     
     return Row(
       children: [
-        //再生ボタン
+        // 再生ボタン
         Expanded(
           child: ElevatedButton(
             onPressed: viewModel.playScript,
@@ -33,35 +32,27 @@ class ActionButtonsSection extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 16),
-        //動画生成ボタン
+        // 動画生成ボタン
         Expanded(
           child: ElevatedButton(
-            onPressed: viewModel.isGenerating 
-              ? null  // 生成中は押せないように
+            onPressed: viewModel.isGenerating
+              ? null
               : () async {
                   try {
-                    // 権限チェック（Android用）
-                    if (Platform.isAndroid) {
-                      final status = await Permission.storage.request();
-                      if (!status.isGranted) return;
-                    }
+                    // アニメーションダイアログを表示
+                    viewModel.startAnimation(context);
                     
-                    // 動画生成開始
-                    await viewModel.generateVideo();
-                    
-                    // 成功通知
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('動画を生成しました！')),
+                      const SnackBar(content: Text('アニメーションを開始しました')),
                     );
                   } catch (e) {
-                    // エラー通知
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('エラーが発生しました: $e')),
                     );
                   }
                 },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.pink, 
+              backgroundColor: Colors.pink,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.all(16),
             ),
@@ -70,7 +61,7 @@ class ActionButtonsSection extends StatelessWidget {
               children: [
                 const Icon(Icons.movie),
                 const SizedBox(width: 8),
-                Text(viewModel.isGenerating ? '生成中...' : '動画を生成する'),
+                Text(viewModel.isGenerating ? '再生中...' : 'アニメーションを再生'),
               ],
             ),
           ),

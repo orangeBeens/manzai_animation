@@ -1,51 +1,62 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
-import 'dart:html' as html;
-import 'dart:convert';
-import 'package:path_provider/path_provider.dart';
-import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
-import 'dart:ui' as ui;
-import 'dart:io';
+import 'package:flutter_tts/flutter_tts.dart';  // テキスト読み上げ用
+import 'dart:html' as html;  // Web用の機能
+import 'dart:convert';  // 文字エンコーディング用
+import 'package:path_provider/path_provider.dart';  // ファイルパス取得用
+import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';  // 動画生成用
+import 'dart:ui' as ui;  // UI関連の機能
+import 'dart:io';  // ファイル操作用
+
+// 必要なウィジェットとモデルのインポート
+import '../views/widgets/animation_dialog_section.dart';
 import '../models/video_generator.dart';
-import '../models/video_config.dart';
 import '../models/script_line.dart';
 
-
-
+/// スクリプトエディタのViewModel - 状態管理とビジネスロジックを担当
 class ScriptEditorViewModel extends ChangeNotifier {
-  // 台本音声再生
-    ScriptEditorViewModel() {
-    _initTts(); // TTSの初期化メソッドを追加
+  // コンストラクタ - ViewModelの初期化時にTTSも初期化
+  ScriptEditorViewModel() {
+    _initTts();
   }
-  // TTSの初期化
+
+  // === 定数定義 ===
+  static const double minTiming = 0.1;  // 最小の間（秒）
+  static const double maxTiming = 10.0;  // 最大の間（秒）
+  static const double minSpeed = 0.5;  // 最小の速度
+  static const double maxSpeed = 2.0;  // 最大の速度
+
+  // TTSの初期化メソッド
   Future<void> _initTts() async {
-    await _tts.setLanguage('ja-JP');
-    await _tts.setPitch(1.0);
-    await _tts.setSpeechRate(1.0);
+    try {
+      await _tts.setLanguage('ja-JP');  // 日本語に設定
+      await _tts.setPitch(1.0);         // 声の高さを標準に
+      await _tts.setSpeechRate(1.0);    // 話速を標準に
+    } catch (e) {
+      _errorMessage = 'TTSの初期化に失敗しました';
+      notifyListeners();
+    }
   }
 
+  // === インスタンス変数 ===
   final FlutterTts _tts = FlutterTts();
-  
-  // 動画生成に関する状態管理
   final VideoGenerator _videoGenerator = VideoGenerator();
-  bool _isGenerating = false;      // 生成中フラグ
-  double _generationProgress = 0.0; //生成プログレス
-  String? _errorMessage;           // エラーメッセージ
-  String? _generatedVideoPath;     // 生成された動画のパス
+  bool _isGenerating = false;
+  double _generationProgress = 0.0;
+  String? _errorMessage;
+  String? _generatedVideoPath;
 
-  // 台本のデータモデルを管理
-  final List<ScriptLine> _scriptLines = [];     // 台本の各行
-  String _selectedCharacterType = 'ボケ';       // 現在選択中のキャラクター
-  double _selectedTiming = 0.2;                 // 発話タイミング
-  double _selectedSpeed = 1.0;                  // 発話速度
-  String? _bokeImage;                          // ボケキャラの画像パス
-  String? _tsukkomiImage;                      // ツッコミキャラの画像パス
-  String _bokeName = '';                       // ボケの名前
-  String _tsukkomiName = '';                   // ツッコミの名前
-  String _combiName = '';                      // コンビ名
+  // スクリプト関連の状態
+  final List<ScriptLine> _scriptLines = [];
+  String _selectedCharacterType = 'ボケ';
+  double _selectedTiming = 0.2;
+  double _selectedSpeed = 1.0;
+  String? _bokeImage;
+  String? _tsukkomiImage;
+  String _bokeName = '';
+  String _tsukkomiName = '';
+  String _combiName = '';
 
-
-  // ゲッター
+  // === ゲッター ===
   bool get isGenerating => _isGenerating;
   String? get errorMessage => _errorMessage;
   String? get generatedVideoPath => _generatedVideoPath;
@@ -60,20 +71,45 @@ class ScriptEditorViewModel extends ChangeNotifier {
   String get combiName => _combiName;
   double get generationProgress => _generationProgress;
 
-  // セッター: 値の更新と画面の再描画を一緒に行う
+  // === バリデーションメソッド ===
+  // タイミングの値が適切な範囲内かチェック
+  bool _validateTiming(double timing) {
+    return timing >= minTiming && timing <= maxTiming;
+  }
+
+  // スピードの値が適切な範囲内かチェック
+  bool _validateSpeed(double speed) {
+    return speed >= minSpeed && speed <= maxSpeed;
+  }
+
+  // テキストが空でないかチェック
+  bool _validateText(String text) {
+    return text.trim().isNotEmpty;
+  }
+
+  // === セッター ===
+  // キャラクタータイプの設定
   void setSelectedCharacterType(String type) {
-    _selectedCharacterType = type;
-    notifyListeners(); // Providerに変更を通知して画面を更新
+    if (type == 'ボケ' || type == 'ツッコミ') {
+      _selectedCharacterType = type;
+      notifyListeners();
+    }
   }
 
+  // タイミングの設定
   void setSelectedTiming(double timing) {
-    _selectedTiming = timing;
-    notifyListeners();
+    if (_validateTiming(timing)) {
+      _selectedTiming = timing;
+      notifyListeners();
+    }
   }
 
+  // スピードの設定
   void setSelectedSpeed(double speed) {
-    _selectedSpeed = speed;
-    notifyListeners();
+    if (_validateSpeed(speed)) {
+      _selectedSpeed = speed;
+      notifyListeners();
+    }
   }
 
   void setBokeImage(String? path) {
@@ -101,44 +137,137 @@ class ScriptEditorViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 台本操作メソッド
+  // === 台本編集メソッド ===
+  /// スクリプトラインの編集
+  /// @param index 編集する行のインデックス
+  /// @param text セリフ
+  /// @param characterType キャラクタータイプ（ボケ/ツッコミ）
+  /// @param timing 間（秒）
+  /// @param speed 速度
+  void editScriptLine(int index, String text, String characterType, double timing, double speed) {
+    // 入力値のバリデーション
+    if (!_validateText(text)) {
+      _errorMessage = 'セリフを入力してください';
+      notifyListeners();
+      return;
+    }
+
+    if (!_validateTiming(timing)) {
+      _errorMessage = '間は $minTiming ~ $maxTiming の範囲で入力してください';
+      notifyListeners();
+      return;
+    }
+
+    if (!_validateSpeed(speed)) {
+      _errorMessage = 'スピードは $minSpeed ~ $maxSpeed の範囲で入力してください';
+      notifyListeners();
+      return;
+    }
+
+    try {
+      // インデックスの範囲チェック
+      if (index < 0 || index >= _scriptLines.length) {
+        throw RangeError('無効なインデックスです: $index');
+      }
+
+      // スクリプトラインの更新
+      _scriptLines[index] = ScriptLine(
+        text: text.trim(),
+        characterType: characterType,
+        timing: timing,
+        speed: speed,
+      );
+
+      // エラーメッセージをクリアして更新を通知
+      _errorMessage = null;
+      notifyListeners();
+
+    } catch (e) {
+      _errorMessage = '台本の更新に失敗しました';
+      notifyListeners();
+    }
+  }
+
+  // スクリプトラインの並び替え
+  void reorderScriptLine(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || newIndex < 0 || 
+        oldIndex >= _scriptLines.length || 
+        newIndex >= _scriptLines.length) {
+      return;
+    }
+    
+    final line = _scriptLines.removeAt(oldIndex);
+    _scriptLines.insert(newIndex, line);
+    notifyListeners();
+  }
+
+  // スクリプトラインの追加
   void addScriptLine(String text) {
-    if (text.isEmpty) return;
+    if (text.trim().isEmpty) return;
     
     _scriptLines.add(
       ScriptLine(
         characterType: _selectedCharacterType,
         timing: _selectedTiming,
         speed: _selectedSpeed,
-        text: text,
+        text: text.trim(),
       ),
     );
     notifyListeners();
   }
 
+  // スクリプトラインの削除
   void removeScriptLine(int index) {
+    if (index < 0 || index >= _scriptLines.length) return;
+    
     _scriptLines.removeAt(index);
     notifyListeners();
   }
-  // 台本音声再生メソッド
+
+  // === 台本音声再生 ===
   Future<void> playScript() async {
-    for (var line in scriptLines) {
+    for (var line in _scriptLines) {
       if (line.timing > 0) {
         await Future.delayed(Duration(milliseconds: (line.timing * 1000).round()));
       }
 
-      // ボケ、ツッコミで声の高さを変える
       await _tts.setPitch(line.characterType == 'ボケ' ? 1.3 : 0.8);
-      await _tts.setSpeechRate(line.speed * 1.2);
-      await _tts.awaitSpeakCompletion(true);
+      await _tts.setSpeechRate(line.speed);
       await _tts.speak(line.text);
     }
-    notifyListeners();
   }
 
-  //台本csv保存メソッド
+  // リソースの解放
+  @override
+  void dispose() {
+    _tts.stop();
+    super.dispose();
+  }
+
+  // === アニメーションダイアログ ===
+  void startAnimation(BuildContext context) {
+    if (_scriptLines.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          child: AnimationDialog(
+            dialogues: _scriptLines,
+            tts: _tts,
+            onComplete: () => Navigator.of(context).pop(),
+            bokeImagePath: _bokeImage ?? '',
+            tsukkomiImagePath: _tsukkomiImage ?? '',
+          ),
+        );
+      },
+    );
+  }
+
+  // === CSV出力 ===
   Future<void> exportCsv() async {
-    final csvContent = scriptLines.map((line) =>
+    final csvContent = _scriptLines.map((line) =>
       '${line.characterType},${line.text},${line.timing},${line.speed}'
     ).join('\n');
     
@@ -146,144 +275,12 @@ class ScriptEditorViewModel extends ChangeNotifier {
     final bytes = utf8.encode(withHeader);
     final blob = html.Blob([bytes]);
     final url = html.Url.createObjectUrlFromBlob(blob);
+    
+    // ダウンロードリンクの作成と実行
     html.AnchorElement(href: url)
       ..setAttribute('download', '台本_${DateTime.now().millisecondsSinceEpoch}.csv')
       ..click();
 
     html.Url.revokeObjectUrl(url);
-  }
-
-  // 動画生成
-  Future<void> generateVideo() async {
-    if (_scriptLines.isEmpty) return;
-    
-    try {
-      _isGenerating = true;
-      notifyListeners();
-
-      final tempDir = await getTemporaryDirectory();
-      final framesPaths = <String>[];
-
-      // フレーム生成
-      for (var i = 0; i < _scriptLines.length; i++) {
-        _generationProgress = i / _scriptLines.length;
-        notifyListeners();
-
-        final frame = await _generateFrame(_scriptLines[i]);
-        final path = '${tempDir.path}/frame_$i.png';
-        
-        // フレームを保存
-        final byteData = await frame.toByteData(
-          format: ui.ImageByteFormat.png
-        );
-        await File(path).writeAsBytes(
-          byteData!.buffer.asUint8List()
-        );
-        
-        framesPaths.add(path);
-      }
-
-      // FFmpegで動画生成
-      final outputPath = '${await getApplicationDocumentsDirectory()}/manzai_${DateTime.now().millisecondsSinceEpoch}.mp4';
-      
-      await FFmpegKit.execute(
-        '-framerate 30 -i ${tempDir.path}/frame_%d.png '
-        '-c:v libx264 -pix_fmt yuv420p $outputPath'
-      );
-
-    } finally {
-      _isGenerating = false;
-      _generationProgress = 0.0;
-      notifyListeners();
-    }
-  }
-  Future<ui.Image> _generateFrame(ScriptLine line) async {
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final size = const Size(1280, 720);
-
-    // 背景を白で描画
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = Colors.white,
-    );
-
-    // キャラクター画像の描画（ボケとツッコミ）
-    if (_bokeImage != null || _tsukkomiImage != null) {
-      await _drawCharacters(canvas, size, line);
-    }
-
-    // セリフの描画
-    _drawDialog(canvas, size, line);
-
-    return recorder.endRecording().toImage(
-      size.width.toInt(),
-      size.height.toInt(),
-    );
-  }
-  Future<void> _drawCharacters(Canvas canvas, Size size, ScriptLine line) async {
-    final characterImage = line.characterType == 'ボケ' ? _bokeImage : _tsukkomiImage;
-    if (characterImage == null) return;
-
-    try {
-      final file = File(characterImage);
-      final bytes = await file.readAsBytes();
-      final codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      
-      final destRect = Rect.fromLTWH(
-        line.characterType == 'ボケ' ? 100 : size.width - 300,
-        size.height - 400,
-        200,
-        300,
-      );
-
-      canvas.drawImageRect(
-        frame.image,
-        Rect.fromLTWH(0, 0, frame.image.width.toDouble(), frame.image.height.toDouble()),
-        destRect,
-        Paint(),
-      );
-    } catch (e) {
-      debugPrint('キャラクター画像の描画エラー: $e');
-    }
-  }
-  void _drawDialog(Canvas canvas, Size size, ScriptLine line) {
-    final textSpan = TextSpan(
-      text: line.text,
-      style: const TextStyle(
-        color: Colors.black,
-        fontSize: 24,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout(maxWidth: size.width * 0.6);
-
-    // 吹き出しの背景
-    final bubbleRect = Rect.fromLTWH(
-      size.width * 0.2,
-      50,
-      size.width * 0.6,
-      textPainter.height + 40,
-    );
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(bubbleRect, const Radius.circular(20)),
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.fill
-        ..strokeWidth = 2,
-    );
-
-    // テキスト描画
-    textPainter.paint(
-      canvas,
-      Offset(size.width * 0.2 + 20, 70),
-    );
   }
 }
