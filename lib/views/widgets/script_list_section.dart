@@ -1,17 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/script_editor_viewmodel.dart';
-import '../../models/script_line.dart';
 
 /// スクリプトのリストを表示・編集するウィジェット
 class ScriptListSection extends StatelessWidget {
   const ScriptListSection({Key? key}) : super(key: key);
-
-  // 定数の定義
-  // static const double _minTiming = 0.1;
-  // static const double _maxTiming = 10.0;
-  // static const double _minSpeed = 0.5;
-  // static const double _maxSpeed = 2.0;
 
   @override
   Widget build(BuildContext context) {
