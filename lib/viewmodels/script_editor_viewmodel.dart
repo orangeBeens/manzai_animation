@@ -56,6 +56,8 @@ class ScriptEditorViewModel extends ChangeNotifier {
   String _bokeName = '';
   String _tsukkomiName = '';
   String _combiName = '';
+  int _bokeVoice = 1;
+  int _tsukkomiVoice = 1;
 
   // === ゲッター ===
   bool get isGenerating => _isGenerating;
@@ -71,6 +73,24 @@ class ScriptEditorViewModel extends ChangeNotifier {
   String get tsukkomiName => _tsukkomiName;
   String get combiName => _combiName;
   double get generationProgress => _generationProgress;
+  int get bokeVoice => _bokeVoice;
+  int get tsukkomiVoice => _tsukkomiVoice;
+
+  // === 声のタイプ（VoiceVox) ===
+  static const List<DropdownMenuItem<int>> voiceTypeItems = [
+    DropdownMenuItem(value: 1, child: Text('ずんだもん')),
+    DropdownMenuItem(value: 2, child: Text('四国めたん')),
+    DropdownMenuItem(value: 13, child: Text('青山龍星')),
+    DropdownMenuItem(value: 30, child: Text('アナウンサー')),
+    DropdownMenuItem(value: 40, child: Text('玄野武宏')),
+    DropdownMenuItem(value: 42, child: Text('ちび式じい')),
+    DropdownMenuItem(value: 45, child: Text('櫻歌ミコ')),
+    DropdownMenuItem(value: 51, child: Text('†聖騎士 紅桜†')),
+    DropdownMenuItem(value: 53, child: Text('麒ヶ島宗麟')),
+    DropdownMenuItem(value: 67, child: Text('栗田まろん')),
+    DropdownMenuItem(value: 69, child: Text('満別花丸')),
+    DropdownMenuItem(value: 88, child: Text('後鬼')),
+  ];
 
   // === バリデーションメソッド ===
   // タイミングの値が適切な範囲内かチェック
@@ -135,6 +155,14 @@ class ScriptEditorViewModel extends ChangeNotifier {
 
   void setCombiName(String name) {
     _combiName = name;
+    notifyListeners();
+  }
+  void setTsukkomiVoice(int speaker_id){
+    _tsukkomiVoice = speaker_id;
+    notifyListeners();
+  }
+    void setBokeVoice(int speaker_id){
+    _bokeVoice = speaker_id;
     notifyListeners();
   }
 
@@ -239,7 +267,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   // 1行だけ再生
   Future<void> playScriptLine(ScriptLine line) async {
     try {
-      final speakerId = 20;
+      final speakerId = line.characterType == 'ボケ' ? bokeVoice : tsukkomiVoice;
       
       // FastAPIサーバーに音声合成リクエストを送信
       final response = await http.post(
@@ -290,10 +318,11 @@ class ScriptEditorViewModel extends ChangeNotifier {
           backgroundColor: Colors.white,
           child: AnimationDialog(
             dialogues: _scriptLines,
-            tts: _tts,
             onComplete: () => Navigator.of(context).pop(),
             bokeImagePath: _bokeImage ?? '',
             tsukkomiImagePath: _tsukkomiImage ?? '',
+            bokeVoice: _bokeVoice,
+            tsukkomiVoice: _tsukkomiVoice, 
           ),
         );
       },

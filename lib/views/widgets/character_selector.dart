@@ -29,6 +29,9 @@ class _CharacterSelectState extends State<CharacterSelect> {
     'assets/images/character/Ronaldo.png',
     'assets/images/character/mike.png',
     'assets/images/character/ojii.png',
+    'assets/images/character/musu.png',
+    'assets/images/character/manzaishi.png',
+    'assets/images/character/punch_hamasaki.png',
   ];
 
   @override

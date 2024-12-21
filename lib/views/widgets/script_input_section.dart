@@ -21,7 +21,7 @@ class _ScriptInputSectionState extends State<ScriptInputSection> {
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<ScriptEditorViewModel>(context);
-    
+
     return Column(
       children: [
         //ボケツッコミ選択のドロップダウン
