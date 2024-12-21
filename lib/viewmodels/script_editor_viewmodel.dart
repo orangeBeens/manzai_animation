@@ -3,14 +3,13 @@ import 'package:flutter_tts/flutter_tts.dart';  // テキスト読み上げ用
 import 'package:flutter/services.dart';  // TextInputFormatter用
 import 'dart:html' as html;  // Web用の機能
 import 'dart:convert';  // 文字エンコーディング用
-import 'package:path_provider/path_provider.dart';  // ファイルパス取得用
 import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';  // 動画生成用
-import 'dart:ui' as ui;  // UI関連の機能
-import 'dart:io';  // ファイル操作用
+
+import 'package:http/http.dart' as http;
+import 'package:audioplayers/audioplayers.dart';
 
 // 必要なウィジェットとモデルのインポート
 import '../views/widgets/animation_dialog_section.dart';
-import '../models/video_generator.dart';
 import '../models/script_line.dart';
 
 /// スクリプトエディタのViewModel - 状態管理とビジネスロジックを担当
@@ -40,11 +39,12 @@ class ScriptEditorViewModel extends ChangeNotifier {
 
   // === インスタンス変数 ===
   final FlutterTts _tts = FlutterTts();
-  final VideoGenerator _videoGenerator = VideoGenerator();
   bool _isGenerating = false;
   double _generationProgress = 0.0;
   String? _errorMessage;
   String? _generatedVideoPath;
+
+  final AudioPlayer _audioPlayer = AudioPlayer(); // 音声再生用
 
   // スクリプト関連の状態
   final List<ScriptLine> _scriptLines = [];
@@ -226,30 +226,52 @@ class ScriptEditorViewModel extends ChangeNotifier {
   }
 
   // === 台本音声再生 ===
-  // 1行だけ再生
-  Future<void> playScriptLine(ScriptLine line) async {
-    try {
-      await _tts.setPitch(line.characterType == 'ボケ' ? 1.3 : 0.8);
-      await _tts.setSpeechRate(line.speed);
-      await _tts.speak(line.text);
-    } catch (e) {
-      _errorMessage = '音声再生に失敗しました';
-      notifyListeners();
-    }
-  }
-  // 台本全体の再生
   Future<void> playScript() async {
     for (var line in _scriptLines) {
       if (line.timing > 0) {
         await Future.delayed(Duration(milliseconds: (line.timing * 1000).round()));
       }
+      await playScriptLine(line);
+    }
+  } 
+  
+  
+  // 1行だけ再生
+  Future<void> playScriptLine(ScriptLine line) async {
+    try {
+      final speakerId = 20;
+      
+      // FastAPIサーバーに音声合成リクエストを送信
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/synthesis'),  // FastAPIサーバーのURL
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'text': line.text,
+          'speaker_id': speakerId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        // レスポンスの音声データをバイトデータとして取得
+        final bytes = response.bodyBytes;
+        
+        // BytesSourceからAudioSourceを作成
+        final audioSource = BytesSource(bytes);
+        // 音声を再生
+        await _audioPlayer.play(audioSource);
+        // 音声の再生速度を設定（再生の後にすることで設定が反映される）
+        await _audioPlayer.setPlaybackRate(line.speed);
 
-      await _tts.setPitch(line.characterType == 'ボケ' ? 1.3 : 0.8);
-      await _tts.setSpeechRate(line.speed);
-      await _tts.speak(line.text);
+        
+        // タイミング（間）の設定
+        await Future.delayed(Duration(milliseconds: (line.timing * 1000).round()));
+      } else {
+        throw Exception('音声合成に失敗しました');
+      }
+    } catch (e) {
+      _errorMessage = '音声再生に失敗しました: ${e.toString()}';
+      notifyListeners();
     }
   }
-
   // リソースの解放
   @override
   void dispose() {

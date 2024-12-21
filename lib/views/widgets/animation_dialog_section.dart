@@ -1,4 +1,3 @@
-// views/widgets/animation_dialog_section.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -93,7 +92,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
             child: Image.asset(
               'assets/images/center_mike.png',
               width: 100,
-              height: 300,
+              height: 500,
               fit: BoxFit.contain,
             ),
           ),
