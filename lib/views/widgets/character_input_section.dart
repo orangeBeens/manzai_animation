@@ -25,6 +25,16 @@ class CharacterInputSection extends StatelessWidget {
                    onImageSelected: viewModel.setBokeImage,
                  ),
                  const SizedBox(height: 8),
+                 DropdownButtonFormField<int>(
+                  value: viewModel.bokeVoice,
+                  decoration: const InputDecoration(
+                    labelText: 'ボケの声',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: ScriptEditorViewModel.voiceTypeItems,  // ViewModelから定義済みリストを使用
+                  onChanged: (value) => viewModel.setBokeVoice(value!),
+                ),
+                 const SizedBox(height: 8),
                  TextField(
                    onChanged: viewModel.setBokeName,
                    decoration: const InputDecoration(
@@ -45,7 +55,17 @@ class CharacterInputSection extends StatelessWidget {
                    onImageSelected: viewModel.setTsukkomiImage,
                  ),
                  const SizedBox(height: 8),
-                 TextField(
+                 DropdownButtonFormField<int>(
+                  value: viewModel.tsukkomiVoice,
+                  decoration: const InputDecoration(
+                    labelText: 'ツッコミの声',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: ScriptEditorViewModel.voiceTypeItems,  // ViewModelから定義済みリストを使用
+                  onChanged: (value) => viewModel.setTsukkomiVoice(value!),
+                ),
+                const SizedBox(height: 8),
+                TextField(
                    onChanged: viewModel.setTsukkomiName,
                    decoration: const InputDecoration(
                      labelText: 'ツッコミの名前',
