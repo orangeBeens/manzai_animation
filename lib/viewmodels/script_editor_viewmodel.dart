@@ -20,7 +20,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   }
 
   // === 定数定義 ===
-  static const double minTiming = 0.1;  // 最小の間（秒）
+  static const double minTiming = 0.0;  // 最小の間（秒）
   static const double maxTiming = 10.0;  // 最大の間（秒）
   static const double minSpeed = 0.5;  // 最小の速度
   static const double maxSpeed = 2.0;  // 最大の速度
@@ -56,8 +56,10 @@ class ScriptEditorViewModel extends ChangeNotifier {
   String _bokeName = '';
   String _tsukkomiName = '';
   String _combiName = '';
+  String _scriptName = '';
   int _bokeVoice = 1;
   int _tsukkomiVoice = 1;
+  String? _selectedMusic;
 
   // === ゲッター ===
   bool get isGenerating => _isGenerating;
@@ -75,6 +77,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   double get generationProgress => _generationProgress;
   int get bokeVoice => _bokeVoice;
   int get tsukkomiVoice => _tsukkomiVoice;
+  String? get selectedMusic => _selectedMusic;
 
   // === 声のタイプ（VoiceVox) ===
   static const List<DropdownMenuItem<int>> voiceTypeItems = [
@@ -85,10 +88,13 @@ class ScriptEditorViewModel extends ChangeNotifier {
     DropdownMenuItem(value: 40, child: Text('玄野武宏')),
     DropdownMenuItem(value: 42, child: Text('ちび式じい')),
     DropdownMenuItem(value: 45, child: Text('櫻歌ミコ')),
+    DropdownMenuItem(value: 47, child: Text('ナースロボ＿タイプＴ')),
     DropdownMenuItem(value: 51, child: Text('†聖騎士 紅桜†')),
+    DropdownMenuItem(value: 52, child: Text('雀松朱司')),
     DropdownMenuItem(value: 53, child: Text('麒ヶ島宗麟')),
     DropdownMenuItem(value: 67, child: Text('栗田まろん')),
     DropdownMenuItem(value: 69, child: Text('満別花丸')),
+    DropdownMenuItem(value: 74, child: Text('琴詠ニア')),
     DropdownMenuItem(value: 88, child: Text('後鬼')),
   ];
 
@@ -157,12 +163,20 @@ class ScriptEditorViewModel extends ChangeNotifier {
     _combiName = name;
     notifyListeners();
   }
+  void setScriptName(String name) {
+    _scriptName = name;
+    notifyListeners();
+  }
   void setTsukkomiVoice(int speaker_id){
     _tsukkomiVoice = speaker_id;
     notifyListeners();
   }
-    void setBokeVoice(int speaker_id){
+  void setBokeVoice(int speaker_id){
     _bokeVoice = speaker_id;
+    notifyListeners();
+  }
+  void setSelectedMusic(String? path) {
+    _selectedMusic = path;
     notifyListeners();
   }
 
@@ -322,7 +336,12 @@ class ScriptEditorViewModel extends ChangeNotifier {
             bokeImagePath: _bokeImage ?? '',
             tsukkomiImagePath: _tsukkomiImage ?? '',
             bokeVoice: _bokeVoice,
-            tsukkomiVoice: _tsukkomiVoice, 
+            tsukkomiVoice: _tsukkomiVoice,
+            bokeName: _bokeName,
+            tsukkomiName: _tsukkomiName,
+            combiName: _combiName,
+            scriptName: _scriptName,  // scriptNameをnetaNameとして使用
+            musicPath: _selectedMusic,
           ),
         );
       },

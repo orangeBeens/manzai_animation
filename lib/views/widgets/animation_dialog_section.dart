@@ -3,6 +3,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import '../../models/script_line.dart';
 
 class AnimationDialog extends StatefulWidget {
@@ -12,6 +13,11 @@ class AnimationDialog extends StatefulWidget {
   final String tsukkomiImagePath;
   final int bokeVoice;
   final int tsukkomiVoice;
+  final String bokeName;
+  final String tsukkomiName;
+  final String combiName;
+  final String scriptName;
+  final String? musicPath;
 
   const AnimationDialog({
     Key? key,
@@ -21,6 +27,11 @@ class AnimationDialog extends StatefulWidget {
     required this.tsukkomiImagePath,
     required this.bokeVoice,
     required this.tsukkomiVoice,
+    required this.bokeName,
+    required this.tsukkomiName,
+    required this.combiName,
+    required this.scriptName,
+    this.musicPath,
   }) : super(key: key);
 
   @override
@@ -28,132 +39,248 @@ class AnimationDialog extends StatefulWidget {
 }
 
 class _AnimationDialogState extends State<AnimationDialog> {
-  int currentIndex = 0;
-  bool isAnimating = false;
-  final List<AudioPlayer> _audioPlayers = [AudioPlayer(), AudioPlayer()];
-  int _currentPlayerIndex = 0;
+  static const int _audioPlayerPoolSize = 3;
+  static const int _prefetchCount = 2;
+  
+  late final List<AudioPlayer> _audioPlayerPool;
   final Map<int, BytesSource> _audioCache = {};
-  bool _isPrefetching = false;
+  final Map<int, Completer<void>> _audioCompleters = {};
+  final Set<int> _prefetchingIndices = {};
+  
+  int _currentIndex = 0;
+  bool _isAnimating = false;
+  int _currentPlayerIndex = 0;
+  bool _isDisposed = false;
+
+  // タイトル表示用の状態
+  bool _showInitialTitle = true;
+  bool _showNetaTitle = false;
+  Duration? _musicDuration;
+  AudioPlayer? _bgmPlayer;
+  bool _isDialogueStarted = false;
+
+  StreamController<double>? _progressController;
 
   @override
   void initState() {
     super.initState();
-    _prefetchNextAudio();
-    _startAnimation();
+    _initializeAudioPlayers();
+    _progressController = StreamController<double>.broadcast();
+    _initializeBGM().then((_) {
+      _startTitleSequence();
+    });
   }
 
-  Future<void> _prefetchNextAudio() async {
-    if (_isPrefetching || currentIndex >= widget.dialogues.length - 1) return;
-    
-    _isPrefetching = true;
-    try {
-      final nextIndex = currentIndex + 1;
-      if (!_audioCache.containsKey(nextIndex)) {
-        final audio = await _synthesizeAudio(widget.dialogues[nextIndex]);
-        _audioCache[nextIndex] = audio;
+  void _initializeAudioPlayers() {
+    _audioPlayerPool = List.generate(_audioPlayerPoolSize, (_) {
+      final player = AudioPlayer();
+      player.setReleaseMode(ReleaseMode.stop);
+      return player;
+    });
+  }
+
+  Future<void> _initializeBGM() async {
+    print('_initializeBGM called - musicPath is: ${widget.musicPath}'); // この行を追加
+    if (widget.musicPath != null) {
+      print('Loading BGM from path: ${widget.musicPath}'); // デバッグ用
+      _bgmPlayer = AudioPlayer();
+      try {
+        // 'assets/' プレフィックスを除去
+        final musicPath = widget.musicPath!.replaceAll('assets/', '');
+        await _bgmPlayer!.setSource(AssetSource(musicPath));
+        await _bgmPlayer!.setVolume(1.0); //音量を最大に
+        
+        final duration = await _bgmPlayer!.getDuration();
+        print('BGM duration: $duration'); // デバッグ用
+        
+        if (!_isDisposed) {
+          setState(() {
+            _musicDuration = duration;
+          });
+        }
+        
+        await _bgmPlayer!.play(AssetSource(musicPath));
+        print('BGM playback started'); // デバッグ用
+      } catch (e) {
+        print('BGM initialization error: $e');
       }
-      _audioCache.removeWhere((key, value) => key < currentIndex);
+    }
+  }
+
+  void _startTitleSequence() {
+    setState(() {
+      _showInitialTitle = true;
+      _showNetaTitle = false;
+    });
+
+    // 5秒後にネタ名を表示
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      setState(() {
+        _showNetaTitle = true;
+      });
+      
+      // ネタ名表示後にダイアログを開始
+      if (!_isDialogueStarted) {
+        _isDialogueStarted = true;
+        _startPrefetching();
+        _startAnimation();
+      }
+    });
+  }
+
+  Future<void> _startPrefetching() async {
+    for (var i = 0; i < _prefetchCount; i++) {
+      final nextIndex = _currentIndex + i;
+      if (nextIndex < widget.dialogues.length) {
+        _prefetchAudio(nextIndex);
+      }
+    }
+  }
+
+  Future<void> _prefetchAudio(int index) async {
+    if (_audioCache.containsKey(index) || 
+        _prefetchingIndices.contains(index) || 
+        index >= widget.dialogues.length) {
+      return;
+    }
+
+    _prefetchingIndices.add(index);
+    try {
+      final audio = await _synthesizeAudio(widget.dialogues[index]);
+      if (!_isDisposed) {
+        _audioCache[index] = audio;
+      }
+    } catch (e) {
+      print('Prefetch error for index $index: $e');
     } finally {
-      _isPrefetching = false;
+      _prefetchingIndices.remove(index);
     }
   }
 
   Future<BytesSource> _synthesizeAudio(ScriptLine line) async {
     final speakerId = line.characterType == 'ボケ' ? widget.bokeVoice : widget.tsukkomiVoice;
     
-    final response = await http.post(
-      Uri.parse('http://localhost:8000/synthesis'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'text': line.text,
-        'speaker_id': speakerId,
-      }),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/synthesis'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'text': line.text,
+          'speaker_id': speakerId,
+        }),
+      ).timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 200) {
-      return BytesSource(response.bodyBytes);
-    } else {
-      throw Exception('音声合成に失敗しました');
+      if (response.statusCode == 200) {
+        return BytesSource(response.bodyBytes);
+      }
+      throw Exception('音声合成エラー: ${response.statusCode}');
+    } catch (e) {
+      throw Exception('音声合成リクエストエラー: $e');
     }
   }
 
   Future<void> _playAudio(ScriptLine line, BytesSource audioSource) async {
-    final currentPlayer = _audioPlayers[_currentPlayerIndex];
-    
+    final completer = Completer<void>();
+    _audioCompleters[_currentIndex] = completer;
+
+    final currentPlayer = _audioPlayerPool[_currentPlayerIndex];
+    _currentPlayerIndex = (_currentPlayerIndex + 1) % _audioPlayerPool.length;
+
     try {
       await currentPlayer.stop();
+      final subscription = currentPlayer.onPlayerComplete.listen((_) {
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      });
+
       await currentPlayer.play(audioSource);
       await currentPlayer.setPlaybackRate(line.speed);
       
-      _currentPlayerIndex = (_currentPlayerIndex + 1) % _audioPlayers.length;
-      
-      // 音声再生の完了を待つ
-      await currentPlayer.onPlayerComplete.first;
-      
+      await completer.future;
+      subscription.cancel();
+
       if (line.timing > 0) {
         await Future.delayed(Duration(milliseconds: (line.timing * 1000).round()));
       }
     } catch (e) {
-      print('Error in _playAudio: $e');
-      rethrow;
+      print('Audio playback error: $e');
+      if (!completer.isCompleted) {
+        completer.completeError(e);
+      }
     }
   }
 
   Future<void> _startAnimation() async {
-    if (currentIndex >= widget.dialogues.length) {
+    if (_currentIndex >= widget.dialogues.length) {
       widget.onComplete();
       return;
     }
 
-    setState(() => isAnimating = true);
+    if (_isDisposed) return;
 
-    final currentLine = widget.dialogues[currentIndex];
+    setState(() => _isAnimating = true);
     
-    if (currentLine.timing > 0) {
-      await Future.delayed(Duration(milliseconds: (currentLine.timing * 1000).round()));
-    }
+    final currentLine = widget.dialogues[_currentIndex];
 
     try {
-      BytesSource audioSource;
-      if (_audioCache.containsKey(currentIndex)) {
-        audioSource = _audioCache[currentIndex]!;
-      } else {
+      BytesSource? audioSource = _audioCache[_currentIndex];
+      if (audioSource == null) {
         audioSource = await _synthesizeAudio(currentLine);
-        _audioCache[currentIndex] = audioSource;
+        _audioCache[_currentIndex] = audioSource;
       }
 
       await _playAudio(currentLine, audioSource);
-      
+
+      if (_isDisposed) return;
+
       setState(() {
-        isAnimating = false;
-        currentIndex++;
+        _isAnimating = false;
+        _currentIndex++;
       });
 
-      _prefetchNextAudio();
+      _progressController?.add(_currentIndex / widget.dialogues.length);
+      
+      _audioCache.removeWhere((key, _) => key < _currentIndex - 1);
+      
+      _prefetchAudio(_currentIndex + _prefetchCount);
+
       await Future.delayed(const Duration(milliseconds: 300));
       _startAnimation();
     } catch (e) {
-      setState(() => isAnimating = false);
-      print('Error in _startAnimation: $e');
+      if (!_isDisposed) {
+        setState(() => _isAnimating = false);
+        print('Animation error: $e');
+      }
     }
   }
 
   @override
   void dispose() {
-    for (var player in _audioPlayers) {
+    _isDisposed = true;
+    _bgmPlayer?.dispose();
+    for (var player in _audioPlayerPool) {
       player.dispose();
     }
+    for (var completer in _audioCompleters.values) {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+    _progressController?.close();
     _audioCache.clear();
+    _audioCompleters.clear();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (currentIndex >= widget.dialogues.length) {
+    if (_currentIndex >= widget.dialogues.length) {
       return const SizedBox.shrink();
     }
 
-    final currentLine = widget.dialogues[currentIndex];
+    final currentLine = widget.dialogues[_currentIndex];
     final isBokeCharacter = currentLine.characterType == 'ボケ';
 
     return AspectRatio(
@@ -163,6 +290,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
         color: Colors.white,
         child: Stack(
           children: [
+            // キャラクター表示
             Positioned.fill(
               child: Stack(
                 children: [
@@ -171,12 +299,12 @@ class _AnimationDialogState extends State<AnimationDialog> {
                     children: [
                       _buildCharacterImage(
                         true,
-                        isActive: isBokeCharacter,
+                        isActive: isBokeCharacter && !_showInitialTitle,
                       ),
                       const SizedBox(width: 80),
                       _buildCharacterImage(
                         false,
-                        isActive: !isBokeCharacter,
+                        isActive: !isBokeCharacter && !_showInitialTitle,
                       ),
                     ],
                   ),
@@ -191,6 +319,93 @@ class _AnimationDialogState extends State<AnimationDialog> {
                 ],
               ),
             ),
+
+            // タイトル表示のオーバーレイ
+            if (_showInitialTitle)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.7),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        widget.combiName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ).animate().fadeIn(duration: 800.ms),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            widget.bokeName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                            ),
+                          ).animate().fadeIn(duration: 800.ms).slideX(
+                            begin: -0.3,
+                            duration: 800.ms,
+                          ),
+                          const Text(
+                            ' & ',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                            ),
+                          ),
+                          Text(
+                            widget.tsukkomiName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                            ),
+                          ).animate().fadeIn(duration: 800.ms).slideX(
+                            begin: 0.3,
+                            duration: 800.ms,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // ネタ名表示
+            if (_showNetaTitle)
+              Positioned(
+                top: 40,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      widget.scriptName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ).animate().fadeIn(duration: 1000.ms).slideY(
+                begin: -0.3,
+                duration: 1000.ms,
+              ),
+
+            // 台詞とプログレスバー
             Positioned(
               left: 0,
               right: 0,
@@ -198,45 +413,43 @@ class _AnimationDialogState extends State<AnimationDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
+                  if (!_showInitialTitle) Container(
                     margin: const EdgeInsets.symmetric(horizontal: 24),
                     padding: const EdgeInsets.symmetric(
                       vertical: 12,
                       horizontal: 24,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      color: Colors.black.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       currentLine.text,
                       style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 24,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                  )
-                  .animate()
-                  .fadeIn(duration: 300.ms)
-                  .slideY(begin: 0.3, duration: 500.ms, curve: Curves.easeOutQuad),
+                  ).animate()
+                   .fadeIn(duration: 50.ms)
+                   .slideY(begin: 0.3, duration: 200.ms, curve: Curves.easeOutQuad),
 
                   const SizedBox(height: 16),
 
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
-                    child: LinearProgressIndicator(
-                      value: currentIndex / widget.dialogues.length,
-                      backgroundColor: Colors.grey[200],
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
-                    ),
+                  StreamBuilder<double>(
+                    stream: _progressController?.stream,
+                    initialData: 0.0,
+                    builder: (context, snapshot) {
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 24),
+                        child: LinearProgressIndicator(
+                          value: snapshot.data,
+                          backgroundColor: Colors.grey[200],
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -248,33 +461,33 @@ class _AnimationDialogState extends State<AnimationDialog> {
   }
 
   Widget _buildCharacterImage(bool isBoke, {required bool isActive}) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            height: double.infinity,
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage(
-                  isBoke ? widget.bokeImagePath : widget.tsukkomiImagePath
-                ),
-                fit: BoxFit.contain,
-              ),
-            ),
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
             child: Container(
-              color: isActive ? null : Colors.black.withOpacity(0.3),
+              height: double.infinity,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(
+                    isBoke ? widget.bokeImagePath : widget.tsukkomiImagePath
+                  ),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              child: Container(
+                color: isActive ? null : Colors.black.withOpacity(0.3),
+              ),
             ),
           ),
         ),
-      ),
-    )
-    .animate(target: isActive ? 1 : 0)
-    .scale(
-      duration: const Duration(milliseconds: 800),
-      begin: const Offset(0.95, 0.95),
-      end: const Offset(1.05, 1.05),
-    );
+      )
+      .animate(target: isActive ? 1 : 0)
+      .scale(
+        duration: const Duration(milliseconds: 800),
+        begin: const Offset(0.95, 0.95),
+        end: const Offset(1.05, 1.05),
+      );
+    }
   }
-}
