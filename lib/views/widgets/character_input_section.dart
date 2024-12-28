@@ -13,34 +13,6 @@ class CharacterInputSection extends StatefulWidget {
 
 class _CharacterInputSectionState extends State<CharacterInputSection> {
   bool isSwapped = false;
-  String? selectedMusic;
-  html.AudioElement? _audioElement;
-
-  // 利用可能な音楽のリスト
-  static const List<String> musicList = [
-    'assets/music/2_23_AM.mp3',
-    'assets/music/ALIVE_inst_FreeVer.mp3',
-    'assets/music/CountdownToVictory_Free_Ver.mp3',
-    'assets/music/FreeBGM_machine_head_remix.mp3',
-    'assets/music/honey-remon350ml.mp3',
-    'assets/music/honwaka-puppu.mp3',
-    'assets/music/kaeruno-piano_2.mp3',
-    'assets/music/kaeruno-piano.mp3',
-    'assets/music/kakekko-kyoso.mp3',
-    'assets/music/keen-fire-jean-drop-235365.mp3',
-    'assets/music/maou_41_honeybaby_magicalgirl.mp3',
-    'assets/music/noraneko-uchu.mp3',
-    'assets/music/souzoushin.mp3',
-    'assets/music/spinning-head-27171.mp3',
-    'assets/music/vlog-music-beat-trailer-showreel.mp3',
-  ];
-
-  @override
-  void dispose() {
-    _audioElement?.pause();
-    _audioElement = null;
-    super.dispose();
-  }
 
   void swapCharacters(ScriptEditorViewModel viewModel) {
     setState(() {
@@ -58,26 +30,6 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
       
       isSwapped = !isSwapped;
     });
-  }
-
-  void playMusic() {
-    if (selectedMusic != null) {
-      _audioElement?.pause();
-      _audioElement = html.AudioElement(selectedMusic);
-      _audioElement?.play();
-    }
-  }
-
-  void stopMusic() {
-    _audioElement?.pause();
-    if (_audioElement != null) {
-      _audioElement!.currentTime = 0;
-    }
-  }
-
-  String getMusicDisplayName(String path) {
-    final fileName = path.split('/').last;
-    return fileName.replaceAll('.mp3', '').replaceAll('_', ' ');
   }
 
   @override
@@ -215,36 +167,32 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: selectedMusic,
+                value: viewModel.selectedMusic,  // ViewModelから値を取得
                 decoration: const InputDecoration(
                   labelText: '出囃子選択',
                   border: OutlineInputBorder(),
                   contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
-                items: musicList.map((String path) {
+                items: ScriptEditorViewModel.musicList.map((String path) {  // ViewModelのstaticリストを使用
                   return DropdownMenuItem<String>(
                     value: path,
-                    child: Text(getMusicDisplayName(path)),
+                    child: Text(viewModel.getMusicDisplayName(path)),  // ViewModelのメソッドを使用
                   );
                 }).toList(),
                 onChanged: (value) {
-                  setState(() {
-                    selectedMusic = value;
-                    print('Music selected: $selectedMusic'); // 値が正しく更新されているか確認
-                    stopMusic();
-                  });
+                  viewModel.setSelectedMusic(value);  // ViewModelのメソッドを使用して更新
                 },
               ),
             ),
             const SizedBox(width: 16),
             ElevatedButton.icon(
-              onPressed: selectedMusic != null ? playMusic : null,
+              onPressed: viewModel.selectedMusic != null ? () => viewModel.playMusic() : null,
               icon: const Icon(Icons.play_arrow),
               label: const Text('再生'),
             ),
             const SizedBox(width: 8),
             ElevatedButton.icon(
-              onPressed: selectedMusic != null ? stopMusic : null,
+              onPressed: viewModel.selectedMusic != null ? () => viewModel.stopMusic() : null,
               icon: const Icon(Icons.stop),
               label: const Text('停止'),
             ),

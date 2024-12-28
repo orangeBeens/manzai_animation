@@ -61,6 +61,29 @@ class ScriptEditorViewModel extends ChangeNotifier {
   int _tsukkomiVoice = 1;
   String? _selectedMusic;
 
+    // 音楽再生関連のフィールドを追加
+  html.AudioElement? _audioElement;
+  bool _isPlaying = false;
+
+  // 利用可能な音楽のリスト
+  static const List<String> musicList = [
+    'assets/music/2_23_AM.mp3',
+    'assets/music/ALIVE_inst_FreeVer.mp3',
+    'assets/music/CountdownToVictory_Free_Ver.mp3',
+    'assets/music/FreeBGM_machine_head_remix.mp3',
+    'assets/music/honey-remon350ml.mp3',
+    'assets/music/honwaka-puppu.mp3',
+    'assets/music/kaeruno-piano_2.mp3',
+    'assets/music/kaeruno-piano.mp3',
+    'assets/music/kakekko-kyoso.mp3',
+    'assets/music/keen-fire-jean-drop-235365.mp3',
+    'assets/music/maou_41_honeybaby_magicalgirl.mp3',
+    'assets/music/noraneko-uchu.mp3',
+    'assets/music/souzoushin.mp3',
+    'assets/music/spinning-head-27171.mp3',
+    'assets/music/vlog-music-beat-trailer-showreel.mp3',
+  ];
+
   // === ゲッター ===
   bool get isGenerating => _isGenerating;
   String? get errorMessage => _errorMessage;
@@ -78,6 +101,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   int get bokeVoice => _bokeVoice;
   int get tsukkomiVoice => _tsukkomiVoice;
   String? get selectedMusic => _selectedMusic;
+  bool get isPlaying => _isPlaying;
 
   // === 声のタイプ（VoiceVox) ===
   static const List<DropdownMenuItem<int>> voiceTypeItems = [
@@ -176,9 +200,12 @@ class ScriptEditorViewModel extends ChangeNotifier {
     notifyListeners();
   }
   void setSelectedMusic(String? path) {
+    stopMusic();
     _selectedMusic = path;
     notifyListeners();
   }
+
+  
 
   // === 台本編集メソッド ===
   /// スクリプトラインの編集
@@ -317,7 +344,10 @@ class ScriptEditorViewModel extends ChangeNotifier {
   // リソースの解放
   @override
   void dispose() {
+    stopMusic();
+    _audioElement = null;
     _tts.stop();
+    _audioPlayer.dispose();  // AudioPlayerのdisposeも必要
     super.dispose();
   }
 
@@ -589,4 +619,30 @@ class ScriptEditorViewModel extends ChangeNotifier {
       ),
     );
   }
+
+  // 音楽再生
+  void playMusic() {
+    if (_selectedMusic != null) {
+      _audioElement?.pause();
+      _audioElement = html.AudioElement(_selectedMusic);
+      _audioElement?.play();
+      _isPlaying = true;
+      notifyListeners();
+    }
+  }
+
+  // 音楽停止
+  void stopMusic() {
+    _audioElement?.pause();
+    if (_audioElement != null) {
+      _audioElement!.currentTime = 0;
+      _isPlaying = false;
+      notifyListeners();
+    }
+  }
+  // 表示用の音楽名を取得
+  String getMusicDisplayName(String path) {
+    final fileName = path.split('/').last;
+    return fileName.replaceAll('.mp3', '').replaceAll('_', ' ');
+  }  
 }

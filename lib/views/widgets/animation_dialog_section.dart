@@ -66,9 +66,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
     super.initState();
     _initializeAudioPlayers();
     _progressController = StreamController<double>.broadcast();
-    _initializeBGM().then((_) {
-      _startTitleSequence();
-    });
+    _initializeAndStartBGM();
   }
 
   void _initializeAudioPlayers() {
@@ -78,32 +76,32 @@ class _AnimationDialogState extends State<AnimationDialog> {
       return player;
     });
   }
-
-  Future<void> _initializeBGM() async {
-    print('_initializeBGM called - musicPath is: ${widget.musicPath}'); // この行を追加
+  Future<void> _initializeAndStartBGM() async {
     if (widget.musicPath != null) {
-      print('Loading BGM from path: ${widget.musicPath}'); // デバッグ用
       _bgmPlayer = AudioPlayer();
       try {
-        // 'assets/' プレフィックスを除去
         final musicPath = widget.musicPath!.replaceAll('assets/', '');
         await _bgmPlayer!.setSource(AssetSource(musicPath));
-        await _bgmPlayer!.setVolume(1.0); //音量を最大に
+        await _bgmPlayer!.setVolume(1.0);
         
         final duration = await _bgmPlayer!.getDuration();
-        print('BGM duration: $duration'); // デバッグ用
-        
         if (!_isDisposed) {
           setState(() {
             _musicDuration = duration;
           });
         }
-        
+
+        // ダイアログ表示と同時に音楽を再生
         await _bgmPlayer!.play(AssetSource(musicPath));
-        print('BGM playback started'); // デバッグ用
+        
+        // タイトルシーケンスを開始
+        _startTitleSequence();
       } catch (e) {
         print('BGM initialization error: $e');
       }
+    } else {
+      // 音楽がない場合でもタイトルシーケンスを開始
+      _startTitleSequence();
     }
   }
 
@@ -351,7 +349,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
                             duration: 800.ms,
                           ),
                           const Text(
-                            ' & ',
+                            ' / ',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 32,
@@ -377,7 +375,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
             // ネタ名表示
             if (_showNetaTitle)
               Positioned(
-                top: 40,
+                top: 300,
                 left: 0,
                 right: 0,
                 child: Center(
@@ -394,7 +392,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
                       widget.scriptName,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 36,
+                        fontSize: 32,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
