@@ -36,6 +36,8 @@ class _CharacterSelectState extends State<CharacterSelect> {
     'assets/images/character/nami.png',
     'assets/images/character/suits.png',
     'assets/images/character/okappa.png',
+    'assets/images/character/chiyoko.png',
+    'assets/images/character/genzou.png',
   ];
 
   @override

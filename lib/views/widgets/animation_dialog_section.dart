@@ -76,6 +76,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
       return player;
     });
   }
+
   Future<void> _initializeAndStartBGM() async {
     if (widget.musicPath != null) {
       _bgmPlayer = AudioPlayer();
@@ -89,19 +90,37 @@ class _AnimationDialogState extends State<AnimationDialog> {
           setState(() {
             _musicDuration = duration;
           });
+
+          // BGMの再生時間を監視
+          _bgmPlayer!.onPositionChanged.listen((Duration position) {
+            if (duration != null && !_isDialogueStarted) {
+              // BGMの終了1秒前になったら発話を開始し、タイトルを非表示に
+              if (position.inMilliseconds >= duration.inMilliseconds - 1000) {
+                if (!_isDialogueStarted) {
+                  setState(() {
+                    _showInitialTitle = false;  // タイトルを非表示
+                    _showNetaTitle = false;     // ネタ名も非表示
+                  });
+                  
+                  _isDialogueStarted = true;
+                  _startPrefetching();
+                  _startAnimation();
+                }
+              }
+            }
+          });
         }
 
-        // ダイアログ表示と同時に音楽を再生
+        // タイトルシーケンスを開始し、BGMを再生
+        _startTitleSequence();
         await _bgmPlayer!.play(AssetSource(musicPath));
         
-        // タイトルシーケンスを開始
-        _startTitleSequence();
       } catch (e) {
         print('BGM initialization error: $e');
+        _startTitleSequenceWithoutMusic();
       }
     } else {
-      // 音楽がない場合でもタイトルシーケンスを開始
-      _startTitleSequence();
+      _startTitleSequenceWithoutMusic();
     }
   }
 
@@ -117,13 +136,36 @@ class _AnimationDialogState extends State<AnimationDialog> {
       setState(() {
         _showNetaTitle = true;
       });
+      // 発話開始は音楽の終了1秒前に行うため、ここでは何もしない
+    });
+  }
+  void _startTitleSequenceWithoutMusic() {
+    setState(() {
+      _showInitialTitle = true;
+      _showNetaTitle = false;
+    });
+
+    // 5秒後にネタ名を表示
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      setState(() {
+        _showNetaTitle = true;
+      });
       
-      // ネタ名表示後にダイアログを開始
-      if (!_isDialogueStarted) {
-        _isDialogueStarted = true;
-        _startPrefetching();
-        _startAnimation();
-      }
+      // ネタ名表示から3秒後に発話開始
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() {
+          _showInitialTitle = false;
+          _showNetaTitle = false;
+        });
+        
+        if (!_isDialogueStarted) {
+          _isDialogueStarted = true;
+          _startPrefetching();
+          _startAnimation();
+        }
+      });
     });
   }
 
@@ -193,15 +235,18 @@ class _AnimationDialogState extends State<AnimationDialog> {
         }
       });
 
+      // 音声再生開始
       await currentPlayer.play(audioSource);
       await currentPlayer.setPlaybackRate(line.speed);
       
-      await completer.future;
+      // 音声再生と timing を並行して待つ
+      await Future.wait([
+        completer.future,
+        if (line.timing > 0)
+          Future.delayed(Duration(milliseconds: (line.timing * 1000).round())),
+      ]);
+      
       subscription.cancel();
-
-      if (line.timing > 0) {
-        await Future.delayed(Duration(milliseconds: (line.timing * 1000).round()));
-      }
     } catch (e) {
       print('Audio playback error: $e');
       if (!completer.isCompleted) {
@@ -318,7 +363,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
               ),
             ),
 
-            // タイトル表示のオーバーレイ
+            // タイトル表示のオーバーレイ（アニメーション付き）
             if (_showInitialTitle)
               Positioned.fill(
                 child: Container(
@@ -344,10 +389,9 @@ class _AnimationDialogState extends State<AnimationDialog> {
                               color: Colors.white,
                               fontSize: 32,
                             ),
-                          ).animate().fadeIn(duration: 800.ms).slideX(
-                            begin: -0.3,
-                            duration: 800.ms,
-                          ),
+                          ).animate()
+                           .fadeIn(duration: 800.ms)
+                           .slideX(begin: -0.3, duration: 800.ms),
                           const Text(
                             ' / ',
                             style: TextStyle(
@@ -361,21 +405,27 @@ class _AnimationDialogState extends State<AnimationDialog> {
                               color: Colors.white,
                               fontSize: 32,
                             ),
-                          ).animate().fadeIn(duration: 800.ms).slideX(
-                            begin: 0.3,
-                            duration: 800.ms,
-                          ),
+                          ).animate()
+                           .fadeIn(duration: 800.ms)
+                           .slideX(begin: 0.3, duration: 800.ms),
                         ],
                       ),
                     ],
                   ),
                 ),
-              ),
+              ).animate()
+               .fadeOut(
+                  duration: 500.ms,
+                  curve: Curves.easeOut,
+                  delay: _musicDuration != null 
+                    ? Duration(milliseconds: _musicDuration!.inMilliseconds - 1500)
+                    : 7500.ms  // BGMがない場合は8秒でフェードアウト
+               ),
 
-            // ネタ名表示
+            // ネタ名表示（アニメーション付き）
             if (_showNetaTitle)
               Positioned(
-                top: 300,
+                top: 350,
                 left: 0,
                 right: 0,
                 child: Center(
@@ -398,12 +448,17 @@ class _AnimationDialogState extends State<AnimationDialog> {
                     ),
                   ),
                 ),
-              ).animate().fadeIn(duration: 1000.ms).slideY(
-                begin: -0.3,
-                duration: 1000.ms,
+              ).animate()
+              .fadeIn(duration: 1000.ms)
+              .slideY(begin: -0.3, duration: 1000.ms)
+              .fadeOut(
+                  duration: 500.ms,
+                  curve: Curves.easeOut,
+                  delay: _musicDuration != null 
+                    ? Duration(milliseconds: _musicDuration!.inMilliseconds - 1500)
+                    : 7500.ms
               ),
-
-            // 台詞とプログレスバー
+            // 台詞表示とプログレスバー
             Positioned(
               left: 0,
               right: 0,
@@ -411,44 +466,9 @@ class _AnimationDialogState extends State<AnimationDialog> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!_showInitialTitle) Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 24,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      currentLine.text,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ).animate()
-                   .fadeIn(duration: 50.ms)
-                   .slideY(begin: 0.3, duration: 200.ms, curve: Curves.easeOutQuad),
-
-                  const SizedBox(height: 16),
-
-                  StreamBuilder<double>(
-                    stream: _progressController?.stream,
-                    initialData: 0.0,
-                    builder: (context, snapshot) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 24),
-                        child: LinearProgressIndicator(
-                          value: snapshot.data,
-                          backgroundColor: Colors.grey[200],
-                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
-                        ),
-                      );
-                    },
-                  ),
+                  // if (!_showInitialTitle) _buildDialogueText(currentLine),
+                  // const SizedBox(height: 16),
+                  _buildProgressBar(),
                 ],
               ),
             ),
@@ -457,6 +477,50 @@ class _AnimationDialogState extends State<AnimationDialog> {
       ),
     );
   }
+    // プログレスバー用のウィジェット
+  Widget _buildProgressBar() {
+    return StreamBuilder<double>(
+      stream: _progressController?.stream,
+      initialData: 0.0,
+      builder: (context, snapshot) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          child: LinearProgressIndicator(
+            value: snapshot.data,
+            backgroundColor: Colors.grey[200],
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+          ),
+        );
+      },
+    );
+  }
+
+  // 台詞表示用のウィジェット
+  Widget _buildDialogueText(ScriptLine line) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(
+        vertical: 12,
+        horizontal: 24,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        line.text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    ).animate()
+    .fadeIn(duration: 50.ms)
+    .slideY(begin: 0.3, duration: 200.ms, curve: Curves.easeOutQuad);
+  }
+
+
 
   Widget _buildCharacterImage(bool isBoke, {required bool isActive}) {
       return Expanded(
