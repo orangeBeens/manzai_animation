@@ -53,6 +53,7 @@ dependencies:
   foundation: ^0.0.5
   http: ^1.1.0
   audioplayers: ^6.1.0
+  just_audio: ^0.9.42
 
 
 dev_dependencies:
@@ -77,6 +78,7 @@ flutter:
   assets:
     - assets/images/
     - assets/images/character/
+    - assets/music/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

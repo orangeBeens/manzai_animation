@@ -12,10 +12,10 @@ class ActionButtonsSection extends StatelessWidget {
     
     return Row(
       children: [
-        // 再生ボタン
+        // 台本保存ボタン
         Expanded(
           child: ElevatedButton(
-            onPressed: viewModel.playScript,
+            onPressed: viewModel.exportCsv,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
@@ -26,7 +26,7 @@ class ActionButtonsSection extends StatelessWidget {
               children: [
                 Icon(Icons.play_arrow),
                 SizedBox(width: 8),
-                Text('再生'),
+                Text('台本保存'),
               ],
             ),
           ),
