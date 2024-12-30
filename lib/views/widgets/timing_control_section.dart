@@ -22,8 +22,8 @@ class TimingControlSection extends StatelessWidget {
                     child: Slider(
                       value: viewModel.selectedTiming,
                       min: 0.0,
-                      max: 5.0,
-                      divisions: 50,
+                      max: 10.0,
+                      divisions: 100,
                       label: viewModel.selectedTiming.toStringAsFixed(1),
                       onChanged: viewModel.setSelectedTiming,
                     ),

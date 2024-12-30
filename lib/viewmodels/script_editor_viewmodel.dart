@@ -615,7 +615,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
                     labelText: '声量（倍）',
                     helperText: '$minVolume ~ $maxVolume の範囲で入力',
                     border: const OutlineInputBorder(),
-                    errorText: _validateSpeed(volumeController.text),
+                    errorText: _validateVolume(volumeController.text),
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
