@@ -24,6 +24,13 @@ class ScriptEditorViewModel extends ChangeNotifier {
   static const double maxTiming = 10.0;  // 最大の間（秒）
   static const double minSpeed = 0.5;  // 最小の速度
   static const double maxSpeed = 2.0;  // 最大の速度
+  static const double maxVolume = 10.0;  // 最大の音量
+  static const double minVolume = 0.5;  // 最小の音量
+  static const double maxPitch = 0.15;  // 最大の声高
+  static const double minPitch = -0.15;  // 最小の声高
+  static const double maxIntonation = 3.0;  // 最小の抑揚
+  static const double minIntonation = 0.0;  // 最小の抑揚
+
 
   // TTSの初期化メソッド
   Future<void> _initTts() async {
@@ -49,8 +56,11 @@ class ScriptEditorViewModel extends ChangeNotifier {
   // スクリプト関連の状態
   final List<ScriptLine> _scriptLines = [];
   String _selectedCharacterType = 'ボケ';
-  double _selectedTiming = 0.2;
+  double _selectedTiming = 0.1;
   double _selectedSpeed = 1.0;
+  double _selectedVolume = 1.0;
+  double _selectedPitch = 0.0;
+  double _selectedIntonation = 0.0;
   String? _bokeImage;
   String? _tsukkomiImage;
   String _bokeName = '';
@@ -58,7 +68,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   String _combiName = '';
   String _scriptName = '';
   int _bokeVoice = 1;
-  int _tsukkomiVoice = 1;
+  int _tsukkomiVoice = 2;
   String? _selectedMusic;
 
     // 音楽再生関連のフィールドを追加
@@ -82,6 +92,11 @@ class ScriptEditorViewModel extends ChangeNotifier {
     'assets/music/souzoushin.mp3',
     'assets/music/spinning-head-27171.mp3',
     'assets/music/vlog-music-beat-trailer-showreel.mp3',
+    'assets/music/maou_short_14_shining_star.mp3',
+    'assets/music/maou_short_19_12345.mp3',
+    'assets/music/MusMus_BGM_061.mp3',
+    'assets/music/MusMus_BGM_113.mp3',
+    'assets/music/MusMus_BGM_136.mp3'
   ];
 
   // === ゲッター ===
@@ -92,6 +107,9 @@ class ScriptEditorViewModel extends ChangeNotifier {
   String get selectedCharacterType => _selectedCharacterType;
   double get selectedTiming => _selectedTiming;
   double get selectedSpeed => _selectedSpeed;
+  double get selectedVolume => _selectedVolume;
+  double get selectedPitch => _selectedPitch;
+  double get selectedIntonation => _selectedIntonation;
   String? get bokeImage => _bokeImage;
   String? get tsukkomiImage => _tsukkomiImage;
   String get bokeName => _bokeName;
@@ -133,6 +151,21 @@ class ScriptEditorViewModel extends ChangeNotifier {
     return speed >= minSpeed && speed <= maxSpeed;
   }
 
+  // 声量の値が適切な範囲内かチェック
+  bool validateVolume(double volume) {
+    return volume >= minVolume && volume <= maxVolume;
+  }
+
+  // 音高の値が適切な範囲内かチェック
+  bool validatePitch(double pitch) {
+    return pitch >= minPitch && pitch <= maxPitch;
+  }
+
+  // 音高の値が適切な範囲内かチェック
+  bool validateIntonation(double intonation) {
+    return intonation >= minIntonation && intonation <= maxIntonation;
+  }
+
   // テキストが空でないかチェック
   bool validateText(String text) {
     return text.trim().isNotEmpty;
@@ -159,6 +192,30 @@ class ScriptEditorViewModel extends ChangeNotifier {
   void setSelectedSpeed(double speed) {
     if (validateSpeed(speed)) {
       _selectedSpeed = speed;
+      notifyListeners();
+    }
+  }
+
+  //声量の設定
+  void setSelectedVolume(double volume){
+    if (validateVolume(volume)) {
+      _selectedVolume = volume;
+      notifyListeners();
+    }
+  }
+
+  //声の高さ の設定
+  void setSelectedPitch(double pitch){
+    if (validatePitch(pitch)) {
+      _selectedPitch = pitch;
+      notifyListeners();
+    }
+  }
+
+  //抑揚の設定
+  void setSelectedIntonation(double intonation){
+    if (validateIntonation(intonation)) {
+      _selectedIntonation = intonation;
       notifyListeners();
     }
   }
@@ -214,7 +271,16 @@ class ScriptEditorViewModel extends ChangeNotifier {
   /// @param characterType キャラクタータイプ（ボケ/ツッコミ）
   /// @param timing 間（秒）
   /// @param speed 速度
-  void editScriptLine(int index, String text, String characterType, double timing, double speed) {
+  void editScriptLine(
+      int index,
+      String text,
+      String characterType,
+      double timing,
+      double speed,
+      double volume,
+      double pitch,
+      double intonation,
+    ) {
     // 入力値のバリデーション
     if (!validateText(text)) {
       _errorMessage = 'セリフを入力してください';
@@ -234,6 +300,24 @@ class ScriptEditorViewModel extends ChangeNotifier {
       return;
     }
 
+    if (!validateVolume(volume)) {
+      _errorMessage = '声量は $minVolume ~ $maxVolume の範囲で入力してください';
+      notifyListeners();
+      return;
+    }
+
+    if (!validatePitch(pitch)) {
+      _errorMessage = '音高は $minPitch ~ $maxPitch の範囲で入力してください';
+      notifyListeners();
+      return;
+    }
+
+    if (!validateIntonation(pitch)) {
+      _errorMessage = '抑揚は $minIntonation ~ $maxIntonation の範囲で入力してください';
+      notifyListeners();
+      return;
+    }
+
     try {
       // インデックスの範囲チェック
       if (index < 0 || index >= _scriptLines.length) {
@@ -246,6 +330,9 @@ class ScriptEditorViewModel extends ChangeNotifier {
         characterType: characterType,
         timing: timing,
         speed: speed,
+        volume: volume,
+        pitch: pitch,
+        intonation: intonation
       );
 
       // エラーメッセージをクリアして更新を通知
@@ -274,12 +361,18 @@ class ScriptEditorViewModel extends ChangeNotifier {
   // スクリプトラインの追加
   void addScriptLine(String text) {
     if (text.trim().isEmpty) return;
-    
+
+    print("_selectedSpeed:$_selectedSpeed ");
+    print("_selectedVolume:$_selectedVolume ");
+    print("_selectedPitch:$_selectedPitch ");
     _scriptLines.add(
       ScriptLine(
         characterType: _selectedCharacterType,
         timing: _selectedTiming,
         speed: _selectedSpeed,
+        volume: _selectedVolume,
+        pitch: _selectedPitch,
+        intonation: _selectedIntonation,
         text: text.trim(),
       ),
     );
@@ -309,7 +402,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   Future<void> playScriptLine(ScriptLine line) async {
     try {
       final speakerId = line.characterType == 'ボケ' ? bokeVoice : tsukkomiVoice;
-      
+      print("line.speed:${line.speed}");
       // FastAPIサーバーに音声合成リクエストを送信
       final response = await http.post(
         Uri.parse('http://localhost:8000/synthesis'),  // FastAPIサーバーのURL
@@ -317,22 +410,26 @@ class ScriptEditorViewModel extends ChangeNotifier {
         body: jsonEncode({
           'text': line.text,
           'speaker_id': speakerId,
+          'speed_scale': line.speed,
+          'volume_scale': line.volume,
+          'pitch_scale': line.pitch,
+          'intonation_scale': line.intonation,
         }),
       );
       if (response.statusCode == 200) {
         // レスポンスの音声データをバイトデータとして取得
         final bytes = response.bodyBytes;
         
+        // タイミング（間）の設定
+        await Future.delayed(Duration(milliseconds: (line.timing * 1000).round()));
         // BytesSourceからAudioSourceを作成
         final audioSource = BytesSource(bytes);
         // 音声を再生
         await _audioPlayer.play(audioSource);
         // 音声の再生速度を設定（再生の後にすることで設定が反映される）
-        await _audioPlayer.setPlaybackRate(line.speed);
-
+        // await _audioPlayer.setPlaybackRate(line.speed); //voicevox側で処理する。
         
-        // タイミング（間）の設定
-        await Future.delayed(Duration(milliseconds: (line.timing * 1000).round()));
+        
       } else {
         throw Exception('音声合成に失敗しました');
       }
@@ -436,6 +533,10 @@ class ScriptEditorViewModel extends ChangeNotifier {
       final textController = TextEditingController(text: line.text);
       final timingController = TextEditingController(text: line.timing.toString());
       final speedController = TextEditingController(text: line.speed.toString());
+      final volumeController = TextEditingController(text: line.volume.toString());
+      final pitchController = TextEditingController(text: line.pitch.toString());
+      final intonationController = TextEditingController(text: line.intonation.toString());
+      
       String selectedType = line.characterType;
 
       // TextEditingControllerのdispose用
@@ -506,6 +607,51 @@ class ScriptEditorViewModel extends ChangeNotifier {
                     FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
                   ],
                 ),
+                const SizedBox(height: 16),
+                // 声量入力フィールド
+                TextField(
+                  controller: volumeController,
+                  decoration: InputDecoration(
+                    labelText: '声量（倍）',
+                    helperText: '$minVolume ~ $maxVolume の範囲で入力',
+                    border: const OutlineInputBorder(),
+                    errorText: _validateSpeed(volumeController.text),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // 声の高さ 入力フィールド
+                TextField(
+                  controller: pitchController,
+                  decoration: InputDecoration(
+                    labelText: '声の高さ（倍）',
+                    helperText: '$minPitch ~ $maxPitch の範囲で入力',
+                    border: const OutlineInputBorder(),
+                    errorText: _validatePitch(pitchController.text),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // 抑揚 入力フィールド
+                TextField(
+                  controller: intonationController,
+                  decoration: InputDecoration(
+                    labelText: '抑揚（倍）',
+                    helperText: '$minIntonation ~ $maxIntonation の範囲で入力',
+                    border: const OutlineInputBorder(),
+                    errorText: _validateIntonation(intonationController.text),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
+                  ],
+                ),
               ],
             ),
           ),
@@ -523,6 +669,9 @@ class ScriptEditorViewModel extends ChangeNotifier {
                   textController.text,
                   timingController.text,
                   speedController.text,
+                  volumeController.text,
+                  pitchController.text,
+                  intonationController.text,
                   context,
                 )) {
                   // すべてのバリデーションをパスした場合のみ保存
@@ -532,6 +681,9 @@ class ScriptEditorViewModel extends ChangeNotifier {
                     selectedType,
                     double.parse(timingController.text),
                     double.parse(speedController.text),
+                    double.parse(volumeController.text),
+                    double.parse(pitchController.text),
+                    double.parse(intonationController.text),
                   );
                   isDialogClosed = true;
                   Navigator.pop(context);
@@ -582,11 +734,62 @@ class ScriptEditorViewModel extends ChangeNotifier {
     return null;
   }
 
+  /// 声量の値をバリデーション
+  String? _validateVolume(String value) {
+    if (value.isEmpty) {
+      return '値を入力してください';
+    }
+    try {
+      final volume = double.parse(value);
+      if (volume < minVolume || volume > maxVolume) {
+        return '$minVolume ~ $maxVolume の範囲で入力してください';
+      }
+    } catch (e) {
+      return '正しい数値を入力してください';
+    }
+    return null;
+  }
+
+  /// 声の高さ の値をバリデーション
+  String? _validatePitch(String value) {
+    if (value.isEmpty) {
+      return '値を入力してください';
+    }
+    try {
+      final pitch = double.parse(value);
+      if (pitch < minPitch || pitch > maxPitch) {
+        return '$minPitch ~ $maxPitch の範囲で入力してください';
+      }
+    } catch (e) {
+      return '正しい数値を入力してください';
+    }
+    return null;
+  }
+
+  /// 抑揚の値をバリデーション
+  String? _validateIntonation(String value) {
+    if (value.isEmpty) {
+      return '値を入力してください';
+    }
+    try {
+      final intonation = double.parse(value);
+      if (intonation < minIntonation || intonation > maxIntonation) {
+        return '$minIntonation ~ $maxIntonation の範囲で入力してください';
+      }
+    } catch (e) {
+      return '正しい数値を入力してください';
+    }
+    return null;
+  }
+
   /// フォーム全体のバリデーション
   bool validateForm(
     String text,
     String timing,
     String speed,
+    String volume,
+    String pitch,
+    String intonation,
     BuildContext context,
   ) {
     if (text.trim().isEmpty) {
@@ -603,6 +806,24 @@ class ScriptEditorViewModel extends ChangeNotifier {
     final speedError = _validateSpeed(speed);
     if (speedError != null) {
       showError(context, speedError);
+      return false;
+    }
+
+    final volumeError = _validateVolume(volume);
+    if (volumeError != null) {
+      showError(context, volumeError);
+      return false;
+    }
+
+    final pitchError = _validatePitch(pitch);
+    if (pitchError != null) {
+      showError(context, pitchError);
+      return false;
+    }
+
+    final intonationError = _validateIntonation(intonation);
+    if (intonationError != null) {
+      showError(context, intonationError);
       return false;
     }
 

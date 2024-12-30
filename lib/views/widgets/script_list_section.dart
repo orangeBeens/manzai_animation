@@ -52,7 +52,7 @@ class ScriptListSection extends StatelessWidget {
               ),
               title: Text(line.text),
               subtitle: Text(
-                '間: ${line.timing.toStringAsFixed(1)}秒, スピード: ${line.speed.toStringAsFixed(2)}x',
+                '間: ${line.timing.toStringAsFixed(1)}秒, スピード: ${line.speed.toStringAsFixed(2)}x, 声量: ${line.volume.toStringAsFixed(2)}, 声の高さ: ${line.pitch.toStringAsFixed(2)}, 抑揚: ${line.intonation.toStringAsFixed(2)}',
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,

@@ -130,8 +130,8 @@ class _AnimationDialogState extends State<AnimationDialog> {
       _showNetaTitle = false;
     });
 
-    // 5秒後にネタ名を表示
-    Future.delayed(const Duration(seconds: 5), () {
+    // 6秒後にネタ名を表示
+    Future.delayed(const Duration(seconds: 6), () {
       if (!mounted) return;
       setState(() {
         _showNetaTitle = true;
@@ -145,8 +145,8 @@ class _AnimationDialogState extends State<AnimationDialog> {
       _showNetaTitle = false;
     });
 
-    // 5秒後にネタ名を表示
-    Future.delayed(const Duration(seconds: 5), () {
+    // 6秒後にネタ名を表示
+    Future.delayed(const Duration(seconds: 6), () {
       if (!mounted) return;
       setState(() {
         _showNetaTitle = true;
@@ -200,7 +200,6 @@ class _AnimationDialogState extends State<AnimationDialog> {
 
   Future<BytesSource> _synthesizeAudio(ScriptLine line) async {
     final speakerId = line.characterType == 'ボケ' ? widget.bokeVoice : widget.tsukkomiVoice;
-    
     try {
       final response = await http.post(
         Uri.parse('http://localhost:8000/synthesis'),
@@ -208,9 +207,13 @@ class _AnimationDialogState extends State<AnimationDialog> {
         body: jsonEncode({
           'text': line.text,
           'speaker_id': speakerId,
+          'speed': line.speed,
+          'volume_scale': line.volume,
+          'pitch_scale': line.pitch,
+          'intonation_scale': line.intonation,
         }),
       ).timeout(const Duration(seconds: 10));
-
+      print('responsecode: ${response.statusCode}');
       if (response.statusCode == 200) {
         return BytesSource(response.bodyBytes);
       }
@@ -220,6 +223,7 @@ class _AnimationDialogState extends State<AnimationDialog> {
     }
   }
 
+  // エラーハンドリングの修正バージョン
   Future<void> _playAudio(ScriptLine line, BytesSource audioSource) async {
     final completer = Completer<void>();
     _audioCompleters[_currentIndex] = completer;
@@ -228,33 +232,47 @@ class _AnimationDialogState extends State<AnimationDialog> {
     _currentPlayerIndex = (_currentPlayerIndex + 1) % _audioPlayerPool.length;
 
     try {
+      print('[Debug] Starting audio playback');
       await currentPlayer.stop();
+      
       final subscription = currentPlayer.onPlayerComplete.listen((_) {
+        print('[Debug] Audio playback completed');
         if (!completer.isCompleted) {
           completer.complete();
         }
       });
 
-      // 音声再生開始
-      await currentPlayer.play(audioSource);
-      await currentPlayer.setPlaybackRate(line.speed);
+      // PlayerStateイベントを監視
+      currentPlayer.onPlayerStateChanged.listen((state) {
+        print('[Debug] Player state changed: $state');
+        if (state == PlayerState.completed) {
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        }
+      });
+
+      print('[Debug] Setting audio source');
+      await currentPlayer.setSource(audioSource);
+      print('[Debug] Audio source set successfully');
+
+      if (line.timing > 0) {
+        print('[Debug] Waiting for timing: ${line.timing} seconds');
+        await Future.delayed(Duration(milliseconds: (line.timing * 1000).round()));
+      }
+
+      print('[Debug] Starting playback');
+      await currentPlayer.resume();
       
-      // 音声再生と timing を並行して待つ
-      await Future.wait([
-        completer.future,
-        if (line.timing > 0)
-          Future.delayed(Duration(milliseconds: (line.timing * 1000).round())),
-      ]);
-      
+      await completer.future;
       subscription.cancel();
     } catch (e) {
-      print('Audio playback error: $e');
+      print('[Debug] Detailed playback error: $e');
       if (!completer.isCompleted) {
         completer.completeError(e);
       }
     }
   }
-
   Future<void> _startAnimation() async {
     if (_currentIndex >= widget.dialogues.length) {
       widget.onComplete();

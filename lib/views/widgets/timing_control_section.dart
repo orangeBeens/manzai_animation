@@ -48,7 +48,7 @@ class TimingControlSection extends StatelessWidget {
               labelText: 'スピード',
               border: OutlineInputBorder(),
             ),
-            items: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((speed) {
+            items: [2.0, 1.75, 1.5, 1.25, 1.0, 0.75, 0.5, 0.25].map((speed) {
               return DropdownMenuItem(
                 value: speed,
                 child: Text('${speed}x'),
@@ -61,6 +61,79 @@ class TimingControlSection extends StatelessWidget {
             },
           ),
         ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: DropdownButtonFormField<double>(
+            value: viewModel.selectedVolume,
+            decoration: const InputDecoration(
+              labelText: '声量',
+              border: OutlineInputBorder(),
+            ),
+            items: [10.0, 7.0, 5.0, 3.0, 2.0, 1.5, 1.0, 0.75, 0.5].map((volume) {
+              return DropdownMenuItem(
+                value: volume,
+                child: Text('${volume}倍'),
+              );
+            }).toList(),
+            onChanged: (double? value) {
+              if (value != null) {
+                viewModel.setSelectedVolume(value);
+              }
+            },
+          ),
+        ),  
+        const SizedBox(width: 8),
+        Expanded(
+          child: DropdownButtonFormField<double>(
+            value: viewModel.selectedPitch,
+            decoration: const InputDecoration(
+              labelText: '声の高さ',
+              border: OutlineInputBorder(),
+            ),
+            items: [0.15, 1.0, 0.5, 0.0, -0.5, -1.0, -1.5].map((pitch) {
+              return DropdownMenuItem(
+                value: pitch,
+                child: Text('${pitch}倍'),
+              );
+            }).toList(),
+            onChanged: (double? value) {
+              if (value != null) {
+                print("Selected pitch value: $value"); // デバッグプリントを追加
+                viewModel.setSelectedPitch(value);
+              }
+            },
+          ),
+        ),  
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('抑揚:', style: TextStyle(fontSize: 12)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: viewModel.selectedIntonation,
+                      min: 0.0,
+                      max: 3.0,
+                      divisions: 30,
+                      label: viewModel.selectedIntonation.toStringAsFixed(1),
+                      onChanged: viewModel.setSelectedIntonation,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '${viewModel.selectedIntonation.toStringAsFixed(1)}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),        
       ],
     );
   }
