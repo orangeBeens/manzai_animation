@@ -493,6 +493,33 @@ class ScriptEditorViewModel extends ChangeNotifier {
 
     html.Url.revokeObjectUrl(url);
   }
+  // === 台本出力（.md） ===
+  Future<void> exportMarkdown() async {
+    final mdScript = StringBuffer();
+    mdScript.writeln('# タイトル:$_scriptName');
+    mdScript.writeln('\n');
+    mdScript.writeln('# コンビ: $_combiName');
+    mdScript.writeln('  * $_bokeName');
+    mdScript.writeln('  * $_tsukkomiName');
+    mdScript.writeln('\n');
+    mdScript.writeln('# 台本:');
+    for (var line in _scriptLines) {
+      // キャラクター名と台詞を追加
+      mdScript.writeln('* ${line.characterType == "ボケ" ? _bokeName : _tsukkomiName}: ${line.text}');
+      // パラメータ情報を追加
+      mdScript.writeln('  * スピード:${line.speed}x, 間:${line.timing}秒, 声量:${line.volume}, 声高:${line.pitch},抑揚:${line.intonation}');
+    }
+    // 2. ダウンロード用の設定
+    final blob = html.Blob([utf8.encode(mdScript.toString())]);
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    
+    html.AnchorElement()
+      ..href = url
+      ..download = '漫才台本_${_scriptName}_${_combiName}.md'
+      ..click();
+
+    html.Url.revokeObjectUrl(url);
+  }
   // == 台本編集画面関連 ==
   /// 削除確認ダイアログを表示
   Future<void> showDeleteConfirmDialog(

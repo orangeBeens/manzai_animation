@@ -15,7 +15,7 @@ class ActionButtonsSection extends StatelessWidget {
         // 台本保存ボタン
         Expanded(
           child: ElevatedButton(
-            onPressed: viewModel.exportCsv,
+            onPressed: viewModel.exportMarkdown,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
@@ -24,7 +24,7 @@ class ActionButtonsSection extends StatelessWidget {
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.play_arrow),
+                Icon(Icons.save_alt),
                 SizedBox(width: 8),
                 Text('台本保存'),
               ],

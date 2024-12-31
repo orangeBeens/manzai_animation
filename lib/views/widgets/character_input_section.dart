@@ -47,7 +47,6 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
               width: 280,
               child: Column(
                 children: [
-                  const Text('ボケ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   CharacterSelect(
                     characterType: 'ボケ',
                     onImageSelected: viewModel.setBokeImage,
@@ -56,7 +55,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                   DropdownButtonFormField<int>(
                     value: viewModel.bokeVoice,
                     decoration: const InputDecoration(
-                      labelText: 'ボケの声',
+                      labelText: '声',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
@@ -67,7 +66,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                   TextField(
                     onChanged: viewModel.setBokeName,
                     decoration: const InputDecoration(
-                      labelText: 'ボケの名前',
+                      labelText: '名前',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
@@ -103,7 +102,6 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
               width: 280,
               child: Column(
                 children: [
-                  const Text('ツッコミ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   CharacterSelect(
                     characterType: 'ツッコミ',
                     onImageSelected: viewModel.setTsukkomiImage,
@@ -112,7 +110,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                   DropdownButtonFormField<int>(
                     value: viewModel.tsukkomiVoice,
                     decoration: const InputDecoration(
-                      labelText: 'ツッコミの声',
+                      labelText: '声',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
@@ -123,7 +121,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                   TextField(
                     onChanged: viewModel.setTsukkomiName,
                     decoration: const InputDecoration(
-                      labelText: 'ツッコミの名前',
+                      labelText: '名前',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),

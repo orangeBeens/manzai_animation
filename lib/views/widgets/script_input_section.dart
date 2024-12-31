@@ -32,8 +32,8 @@ class _ScriptInputSectionState extends State<ScriptInputSection> {
             border: OutlineInputBorder(),
           ),
           items: const [
-            DropdownMenuItem(value: 'ボケ', child: Text('ボケ')),
-            DropdownMenuItem(value: 'ツッコミ', child: Text('ツッコミ')),
+            DropdownMenuItem(value: 'ボケ', child: Text('左')),
+            DropdownMenuItem(value: 'ツッコミ', child: Text('右')),
           ],
           onChanged: (value) => viewModel.setSelectedCharacterType(value!),
         ),
