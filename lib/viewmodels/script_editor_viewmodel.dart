@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';  // テキスト読み上げ用
 import 'package:flutter/services.dart';  // TextInputFormatter用
 import 'dart:html' as html;  // Web用の機能
+import 'dart:async';
 import 'dart:convert';  // 文字エンコーディング用
 import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';  // 動画生成用
 
 import 'package:http/http.dart' as http;
 import 'package:audioplayers/audioplayers.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 // 必要なウィジェットとモデルのインポート
 import '../views/widgets/animation_dialog_section.dart';
@@ -20,7 +23,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
   }
 
   // === 定数定義 ===
-  static const double minTiming = 0.0;  // 最小の間（秒）
+  static const double minTiming = -1.0;  // 最小の間（秒）
   static const double maxTiming = 10.0;  // 最大の間（秒）
   static const double minSpeed = 0.5;  // 最小の速度
   static const double maxSpeed = 2.0;  // 最大の速度
@@ -75,6 +78,28 @@ class ScriptEditorViewModel extends ChangeNotifier {
   html.AudioElement? _audioElement;
   bool _isPlaying = false;
 
+  // アニメーションダイアログの状態管理
+  bool _isDisposed = false;
+  bool _isDialogueAnimating = false;
+  int _dialogueCurrentIndex = 0;
+  bool _showInitialTitle = true;
+  bool _showNetaTitle = false;
+  bool _isDialogueStarted = false;
+  StreamController<double>? _dialogueProgressController;
+  Duration? _musicDuration;
+  AudioPlayer? _bgmPlayer;
+
+  // オーディオプール管理
+  static const int _audioPlayerPoolSize = 3;
+  late final List<AudioPlayer> _audioPlayerPool;
+  final Map<int, BytesSource> _audioCache = {};
+  final Map<int, Completer<void>> _audioCompleters = {};
+  final Set<int> _prefetchingIndices = {};
+  int _currentPlayerIndex = 0;
+
+
+  
+
   // 利用可能な音楽のリスト
   static const List<String> musicList = [
     'assets/music/2_23_AM.mp3',
@@ -120,6 +145,16 @@ class ScriptEditorViewModel extends ChangeNotifier {
   int get tsukkomiVoice => _tsukkomiVoice;
   String? get selectedMusic => _selectedMusic;
   bool get isPlaying => _isPlaying;
+  String get scriptName => _scriptName;
+
+  bool get isDialogueAnimating => _isDialogueAnimating;
+  Duration? get musicDuration => _musicDuration;
+  int get dialogueCurrentIndex => _dialogueCurrentIndex;
+  bool get showInitialTitle => _showInitialTitle;
+  bool get showNetaTitle => _showNetaTitle;
+  bool get isDialogueStarted => _isDialogueStarted;
+  Stream<double>? get dialogueProgress => _dialogueProgressController?.stream;
+
 
   // === 声のタイプ（VoiceVox) ===
   static const List<DropdownMenuItem<int>> voiceTypeItems = [
@@ -425,10 +460,7 @@ class ScriptEditorViewModel extends ChangeNotifier {
         // BytesSourceからAudioSourceを作成
         final audioSource = BytesSource(bytes);
         // 音声を再生
-        await _audioPlayer.play(audioSource);
-        // 音声の再生速度を設定（再生の後にすることで設定が反映される）
-        // await _audioPlayer.setPlaybackRate(line.speed); //voicevox側で処理する。
-        
+        await _audioPlayer.play(audioSource);        
         
       } else {
         throw Exception('音声合成に失敗しました');
@@ -448,32 +480,104 @@ class ScriptEditorViewModel extends ChangeNotifier {
     super.dispose();
   }
 
+  // === 音声をmp3で保存 ===
+  Future<void> createAudioFile() async {
+    const String serverUrl = "http://localhost:8000";
+    
+    try {
+      final script_dict = createVoicevoxScript();
+      final response = await http.post(
+        Uri.parse('$serverUrl/concat'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(script_dict),
+      );
+
+      if (response.statusCode == 200) {
+        // 成功時の処理
+        print('音声結合API呼び出しが成功しました');
+        // 
+        print('response: ${response.body}');
+
+        // responseDataを使用した処理を記述
+      } else {
+        print('APIエラー: ${response.statusCode}');
+        throw Exception('Failed to call Voicevox API');
+      }
+    } catch (e) {
+      print('エラーが発生しました: $e');
+      rethrow;
+    }
+  }
+
+
+  Future<void> saveScriptData(BuildContext context) async {
+  final scriptData = {
+    'title': _scriptName,
+    'combiName': _combiName,
+    'bokeName': _bokeName,
+    'tsukkomiName': _tsukkomiName,
+    'bokeVoice': _bokeVoice,
+    'tsukkomiVoice': _tsukkomiVoice,
+    'bokeImage': _bokeImage,
+    'tsukkomiImage': _tsukkomiImage,
+    'selectedMusic': _selectedMusic,
+    'scriptLines': _scriptLines.map((line) => {
+      'characterType': line.characterType,
+      'timing': line.timing,
+      'speed': line.speed,
+      'text': line.text,
+      'volume': line.volume,
+      'pitch': line.pitch,
+      'intonation': line.intonation,
+    }).toList(),
+    'createdAt': DateTime.now().toIso8601String(),
+  };
+
+  try {
+    final storage = html.window.localStorage;
+    final existingData = storage['saved_scripts'] ?? '[]';
+    final scripts = List<dynamic>.from(jsonDecode(existingData));
+    scripts.add(scriptData);
+    storage['saved_scripts'] = jsonEncode(scripts);
+    notifyListeners();
+
+    // スナックバーでメッセージを表示
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(
+        content: Text('台本を保存しました'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  } catch (e) {
+    _errorMessage = '保存に失敗しました: $e';
+    notifyListeners();
+  }
+  }
+
+
   // === アニメーションダイアログ ===
   void startAnimation(BuildContext context) {
-    if (_scriptLines.isEmpty) return;
+  if (_scriptLines.isEmpty) return;
 
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          child: AnimationDialog(
-            dialogues: _scriptLines,
-            onComplete: () => Navigator.of(context).pop(),
-            bokeImagePath: _bokeImage ?? '',
-            tsukkomiImagePath: _tsukkomiImage ?? '',
-            bokeVoice: _bokeVoice,
-            tsukkomiVoice: _tsukkomiVoice,
-            bokeName: _bokeName,
-            tsukkomiName: _tsukkomiName,
-            combiName: _combiName,
-            scriptName: _scriptName,  // scriptNameをnetaNameとして使用
-            musicPath: _selectedMusic,
-          ),
-        );
-      },
-    );
-  }
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return Dialog(
+        backgroundColor: Colors.white,
+        child: AnimationDialog(
+          viewModel: this,
+          onComplete: () => Navigator.of(context).pop(),
+        ),
+      );
+    },
+  );
+  
+  // アニメーションダイアログの初期化を呼び出し
+  initializeAnimationDialog();
+}
 
   // === CSV出力 ===
   Future<void> exportCsv() async {
@@ -517,7 +621,6 @@ class ScriptEditorViewModel extends ChangeNotifier {
       ..href = url
       ..download = '漫才台本_${_scriptName}_${_combiName}.md'
       ..click();
-
     html.Url.revokeObjectUrl(url);
   }
   // == 台本編集画面関連 ==
@@ -892,5 +995,395 @@ class ScriptEditorViewModel extends ChangeNotifier {
   String getMusicDisplayName(String path) {
     final fileName = path.split('/').last;
     return fileName.replaceAll('.mp3', '').replaceAll('_', ' ');
-  }  
+  }
+
+
+  Future<void> generateVideo() async {
+    if (_scriptLines.isEmpty) return;
+    
+    _isGenerating = true;
+    _generationProgress = 0.0;
+    notifyListeners();
+
+    try {
+      // 1. キャンバスとレコーダーの準備
+      final canvas = html.CanvasElement(width: 1280, height: 720);
+      final ctx = canvas.context2D;
+      final recorder = html.MediaRecorder(canvas.captureStream());
+      final List<html.Blob> chunks = []; // Changed from List<html.File> to List<html.Blob>
+      
+      final completer = Completer<void>();
+
+      // 画像の読み込み
+      html.ImageElement? bokeImage;
+      html.ImageElement? tsukkomiImage;
+      
+      if (_bokeImage != null) {
+        bokeImage = await _loadImage(_bokeImage!);
+      }
+      if (_tsukkomiImage != null) {
+        tsukkomiImage = await _loadImage(_tsukkomiImage!);
+      }
+
+      // イベントリスナーの設定
+      recorder.addEventListener('dataavailable', (html.Event event) {
+        if (event is html.BlobEvent && event.data != null) {
+          chunks.add(event.data!); // Add Blob directly instead of converting to File
+        }
+      });
+
+      recorder.addEventListener('stop', (html.Event _) async {
+        await _downloadVideo(chunks);
+        completer.complete();
+      });
+
+      // 録画開始
+      recorder.start();
+
+      // 5. アニメーション再生
+      var currentLine = 0;
+      var startTime = DateTime.now();
+
+      void animate() {
+        if (currentLine >= _scriptLines.length) {
+          recorder.stop();
+          return;
+        }
+
+        // 現在のセリフを描画
+        _drawFrame(ctx, _scriptLines[currentLine], bokeImage, tsukkomiImage);
+
+        // 次のセリフに進むかチェック
+        var elapsed = DateTime.now().difference(startTime).inMilliseconds / 1000;
+        if (elapsed >= _scriptLines[currentLine].timing + 2.0) {
+          currentLine++;
+          startTime = DateTime.now();
+          _generationProgress = currentLine / _scriptLines.length;
+          notifyListeners();
+        }
+
+        html.window.requestAnimationFrame((_) => animate());
+      }
+
+      animate();
+      await completer.future;
+
+    } catch (e) {
+      _errorMessage = '動画生成中にエラーが発生しました: $e';
+    } finally {
+      _isGenerating = false;
+      _generationProgress = 1.0;
+      notifyListeners();
+    }
+  }
+
+  // 画像読み込み用のヘルパー
+  Future<html.ImageElement> _loadImage(String src) async {
+    final imageElement = html.ImageElement();
+    final completer = Completer<html.ImageElement>();
+    
+    imageElement.onLoad.listen((_) => completer.complete(imageElement));
+    imageElement.src = src;  // srcの設定を後にする
+    
+    return completer.future;
+  }
+
+  // フレーム描画用のヘルパー
+  void _drawFrame(html.CanvasRenderingContext2D ctx, ScriptLine line,
+      html.ImageElement? bokeImg, html.ImageElement? tsukkomiImg) {
+    // 背景をクリア
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, ctx.canvas.width!, ctx.canvas.height!);
+
+    // キャラクター画像を描画
+    if (line.characterType == 'ボケ' && bokeImg != null) {
+      ctx.drawImage(bokeImg, 100, 160);
+    } else if (line.characterType == 'ツッコミ' && tsukkomiImg != null) {
+      ctx.drawImage(tsukkomiImg, 880, 160);
+    }
+
+    // セリフを描画
+    ctx.font = '32px Arial';
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
+    ctx.fillText(line.text, ctx.canvas.width! / 2, ctx.canvas.height! * 0.8);
+  }
+
+  // 動画ダウンロード用のヘルパー
+  Future<void> _downloadVideo(List<html.Blob> chunks) async {
+    final blob = html.Blob(chunks, 'video/webm');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    
+    html.AnchorElement()
+      ..href = url
+      ..download = '${_scriptName}_${DateTime.now().millisecondsSinceEpoch}.webm'
+      ..click();
+
+    html.Url.revokeObjectUrl(url);
+  }
+
+  // アニメーションダイアログの初期化
+  void initializeAnimationDialog() {
+    _initializeAudioPlayers();
+    _dialogueProgressController = StreamController<double>.broadcast();
+    _initializeAndStartBGM();
+  }
+
+  void _initializeAudioPlayers() {
+    _audioPlayerPool = List.generate(_audioPlayerPoolSize, (_) {
+      final player = AudioPlayer();
+      player.setReleaseMode(ReleaseMode.stop);
+      return player;
+    });
+  }
+  Future<void> _initializeAndStartBGM() async {
+  if (_selectedMusic != null) {
+    _bgmPlayer = AudioPlayer();
+    try {
+      final musicPath = _selectedMusic!.replaceAll('assets/', '');
+      await _bgmPlayer!.setSource(AssetSource(musicPath));
+      await _bgmPlayer!.setVolume(1.0);
+      
+      final duration = await _bgmPlayer!.getDuration();
+      if (!_isDisposed) {
+        _musicDuration = duration;
+        notifyListeners();
+
+        _bgmPlayer!.onPositionChanged.listen((Duration position) {
+          if (duration != null && !_isDialogueStarted) {
+            if (position.inMilliseconds >= duration.inMilliseconds - 1000) {
+              if (!_isDialogueStarted) {
+                _updateDialogueState(
+                  showInitialTitle: false,
+                  showNetaTitle: false,
+                  isDialogueStarted: true,
+                );
+                _startPrefetching();
+                _startAnimation();
+              }
+            }
+          }
+        });
+      }
+
+      _startTitleSequence();
+      await _bgmPlayer!.play(AssetSource(musicPath));
+      
+    } catch (e) {
+      print('BGM initialization error: $e');
+      _startTitleSequenceWithoutMusic();
+    }
+  } else {
+    _startTitleSequenceWithoutMusic();
+  }
+}
+
+void _startTitleSequence() {
+  _updateDialogueState(
+    showInitialTitle: true,
+    showNetaTitle: false,
+  );
+
+  Future.delayed(const Duration(seconds: 5), () {
+    if (!_isDisposed) {
+      _updateDialogueState(showNetaTitle: true);
+    }
+  });
+}
+
+void _startTitleSequenceWithoutMusic() {
+  _updateDialogueState(
+    showInitialTitle: true,
+    showNetaTitle: false,
+  );
+
+  Future.delayed(const Duration(seconds: 5), () {
+    if (!_isDisposed) {
+      _updateDialogueState(showNetaTitle: true);
+      
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!_isDisposed) {
+          _updateDialogueState(
+            showInitialTitle: false,
+            showNetaTitle: false,
+            isDialogueStarted: true,
+          );
+          _startPrefetching();
+          _startAnimation();
+        }
+      });
+    }
+  });
+}
+
+void _updateDialogueState({
+  bool? isAnimating,
+  int? currentIndex,
+  bool? showInitialTitle,
+  bool? showNetaTitle,
+  bool? isDialogueStarted,
+}) {
+  if (isAnimating != null) _isDialogueAnimating = isAnimating;
+  if (currentIndex != null) _dialogueCurrentIndex = currentIndex;
+  if (showInitialTitle != null) _showInitialTitle = showInitialTitle;
+  if (showNetaTitle != null) _showNetaTitle = showNetaTitle;
+  if (isDialogueStarted != null) _isDialogueStarted = isDialogueStarted;
+  notifyListeners();
+}
+
+Future<void> _startPrefetching() async {
+  const int _prefetchCount = 2;
+  for (var i = 0; i < _prefetchCount; i++) {
+    final nextIndex = _dialogueCurrentIndex + i;
+    if (nextIndex < _scriptLines.length) {
+      _prefetchAudio(nextIndex);
+    }
+  }
+}
+
+// === 変数からvoicevox用に台本全体を作成 ===  
+Map<String, dynamic> createVoicevoxScript() {
+  // voicesリストの作成
+  final List<Map<String, dynamic>> voices = _scriptLines.map((line) => {
+    "text": line.text,
+    "speaker_id": line.characterType == 'ボケ' ? _bokeVoice : _tsukkomiVoice,
+    "characterType": line.characterType == 'ボケ' ? "left" : "right",
+    "speed_scale": _selectedSpeed,
+    "volume_scale": _selectedVolume,
+    "pitch_scale": _selectedPitch,
+    "intonation_scale": _selectedIntonation,
+    "pre_phoneme_length": _selectedTiming,
+    "post_phoneme_length": 0.0
+  }).toList();
+
+  // 最終的なスクリプト構造の作成
+  return {
+    "title": _scriptName,
+    "combi_name": _combiName,
+    "left_chara": _bokeName,
+    "right_chara": _tsukkomiName,
+    "left_chara_path": _bokeImage,
+    "right_chara_path": _tsukkomiImage,
+    "voices": voices
+  };
+}
+
+Future<void> _prefetchAudio(int index) async {
+  if (_audioCache.containsKey(index) || 
+      _prefetchingIndices.contains(index) || 
+      index >= _scriptLines.length) {
+    return;
+  }
+
+  _prefetchingIndices.add(index);
+  try {
+    final audio = await _synthesizeAnimationAudio(_scriptLines[index]);
+    if (!_isDisposed) {
+      _audioCache[index] = audio;
+    }
+  } catch (e) {
+    print('Prefetch error for index $index: $e');
+  } finally {
+    _prefetchingIndices.remove(index);
+  }
+}
+
+Future<BytesSource> _synthesizeAnimationAudio(ScriptLine line) async {
+  final speakerId = line.characterType == 'ボケ' ? _bokeVoice : _tsukkomiVoice;
+  
+  try {
+    final response = await http.post(
+      Uri.parse('http://localhost:8000/synthesis'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'text': line.text,
+        'speaker_id': speakerId,
+        'speed_scale': line.speed,
+        'volume_scale': line.volume,
+        'pitch_scale': line.pitch,
+        'intonation_scale': line.intonation,
+      }),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode == 200) {
+      return BytesSource(response.bodyBytes);
+    }
+    throw Exception('音声合成エラー: ${response.statusCode}');
+  } catch (e) {
+    throw Exception('音声合成リクエストエラー: $e');
+  }
+}
+
+Future<void> _startAnimation() async {
+  if (_dialogueCurrentIndex >= _scriptLines.length || _isDisposed) {
+    return;
+  }
+
+  _updateDialogueState(isAnimating: true);
+  
+  final currentLine = _scriptLines[_dialogueCurrentIndex];
+
+  try {
+    BytesSource? audioSource = _audioCache[_dialogueCurrentIndex];
+    if (audioSource == null) {
+      audioSource = await _synthesizeAnimationAudio(currentLine);
+      _audioCache[_dialogueCurrentIndex] = audioSource;
+    }
+
+    await _playAnimationAudio(currentLine, audioSource);
+
+    if (_isDisposed) return;
+
+    _updateDialogueState(
+      isAnimating: false,
+      currentIndex: _dialogueCurrentIndex + 1,
+    );
+
+    _dialogueProgressController?.add(_dialogueCurrentIndex / _scriptLines.length);
+    
+    _audioCache.removeWhere((key, _) => key < _dialogueCurrentIndex - 1);
+    
+    _prefetchAudio(_dialogueCurrentIndex + 2);
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    _startAnimation();
+  } catch (e) {
+    if (!_isDisposed) {
+      _updateDialogueState(isAnimating: false);
+      print('Animation error: $e');
+    }
+  }
+}
+Future<void> _playAnimationAudio(ScriptLine line, BytesSource audioSource) async {
+  final completer = Completer<void>();
+  _audioCompleters[_dialogueCurrentIndex] = completer;
+
+  final currentPlayer = _audioPlayerPool[_currentPlayerIndex];
+  _currentPlayerIndex = (_currentPlayerIndex + 1) % _audioPlayerPool.length;
+
+  try {
+    await currentPlayer.stop();
+    final subscription = currentPlayer.onPlayerComplete.listen((_) {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    });
+
+    await currentPlayer.play(audioSource);
+    
+    await Future.wait([
+      completer.future,
+      if (line.timing > 0)
+        Future.delayed(Duration(milliseconds: (line.timing * 1000).round())),
+    ]);
+    
+    subscription.cancel();
+  } catch (e) {
+    print('Audio playback error: $e');
+    if (!completer.isCompleted) {
+      completer.completeError(e);
+    }
+  }
+}
+
 }

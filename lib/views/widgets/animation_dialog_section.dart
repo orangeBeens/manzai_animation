@@ -1,555 +1,226 @@
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'dart:async';
 import '../../models/script_line.dart';
+import '../../viewmodels/script_editor_viewmodel.dart';
 
-class AnimationDialog extends StatefulWidget {
-  final List<ScriptLine> dialogues;
+class AnimationDialog extends StatelessWidget {
+  final ScriptEditorViewModel viewModel;
   final VoidCallback onComplete;
-  final String bokeImagePath;
-  final String tsukkomiImagePath;
-  final int bokeVoice;
-  final int tsukkomiVoice;
-  final String bokeName;
-  final String tsukkomiName;
-  final String combiName;
-  final String scriptName;
-  final String? musicPath;
 
   const AnimationDialog({
     Key? key,
-    required this.dialogues,
+    required this.viewModel,
     required this.onComplete,
-    required this.bokeImagePath,
-    required this.tsukkomiImagePath,
-    required this.bokeVoice,
-    required this.tsukkomiVoice,
-    required this.bokeName,
-    required this.tsukkomiName,
-    required this.combiName,
-    required this.scriptName,
-    this.musicPath,
   }) : super(key: key);
 
   @override
-  State<AnimationDialog> createState() => _AnimationDialogState();
-}
-
-class _AnimationDialogState extends State<AnimationDialog> {
-  static const int _audioPlayerPoolSize = 3;
-  static const int _prefetchCount = 2;
-  
-  late final List<AudioPlayer> _audioPlayerPool;
-  final Map<int, BytesSource> _audioCache = {};
-  final Map<int, Completer<void>> _audioCompleters = {};
-  final Set<int> _prefetchingIndices = {};
-  
-  int _currentIndex = 0;
-  bool _isAnimating = false;
-  int _currentPlayerIndex = 0;
-  bool _isDisposed = false;
-
-  // タイトル表示用の状態
-  bool _showInitialTitle = true;
-  bool _showNetaTitle = false;
-  Duration? _musicDuration;
-  AudioPlayer? _bgmPlayer;
-  bool _isDialogueStarted = false;
-
-  StreamController<double>? _progressController;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeAudioPlayers();
-    _progressController = StreamController<double>.broadcast();
-    _initializeAndStartBGM();
-  }
-
-  void _initializeAudioPlayers() {
-    _audioPlayerPool = List.generate(_audioPlayerPoolSize, (_) {
-      final player = AudioPlayer();
-      player.setReleaseMode(ReleaseMode.stop);
-      return player;
-    });
-  }
-
-  Future<void> _initializeAndStartBGM() async {
-    if (widget.musicPath != null) {
-      _bgmPlayer = AudioPlayer();
-      try {
-        final musicPath = widget.musicPath!.replaceAll('assets/', '');
-        await _bgmPlayer!.setSource(AssetSource(musicPath));
-        await _bgmPlayer!.setVolume(1.0);
-        
-        final duration = await _bgmPlayer!.getDuration();
-        if (!_isDisposed) {
-          setState(() {
-            _musicDuration = duration;
-          });
-
-          // BGMの再生時間を監視
-          _bgmPlayer!.onPositionChanged.listen((Duration position) {
-            if (duration != null && !_isDialogueStarted) {
-              // BGMの終了1秒前になったら発話を開始し、タイトルを非表示に
-              if (position.inMilliseconds >= duration.inMilliseconds - 1000) {
-                if (!_isDialogueStarted) {
-                  setState(() {
-                    _showInitialTitle = false;  // タイトルを非表示
-                    _showNetaTitle = false;     // ネタ名も非表示
-                  });
-                  
-                  _isDialogueStarted = true;
-                  _startPrefetching();
-                  _startAnimation();
-                }
-              }
-            }
-          });
-        }
-
-        // タイトルシーケンスを開始し、BGMを再生
-        _startTitleSequence();
-        await _bgmPlayer!.play(AssetSource(musicPath));
-        
-      } catch (e) {
-        print('BGM initialization error: $e');
-        _startTitleSequenceWithoutMusic();
-      }
-    } else {
-      _startTitleSequenceWithoutMusic();
-    }
-  }
-
-  void _startTitleSequence() {
-    setState(() {
-      _showInitialTitle = true;
-      _showNetaTitle = false;
-    });
-
-    // 5秒後にネタ名を表示
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      setState(() {
-        _showNetaTitle = true;
-      });
-      // 発話開始は音楽の終了1秒前に行うため、ここでは何もしない
-    });
-  }
-  void _startTitleSequenceWithoutMusic() {
-    setState(() {
-      _showInitialTitle = true;
-      _showNetaTitle = false;
-    });
-
-    // 5秒後にネタ名を表示
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!mounted) return;
-      setState(() {
-        _showNetaTitle = true;
-      });
-      
-      // ネタ名表示から3秒後に発話開始
-      Future.delayed(const Duration(seconds: 3), () {
-        if (!mounted) return;
-        setState(() {
-          _showInitialTitle = false;
-          _showNetaTitle = false;
-        });
-        
-        if (!_isDialogueStarted) {
-          _isDialogueStarted = true;
-          _startPrefetching();
-          _startAnimation();
-        }
-      });
-    });
-  }
-
-  Future<void> _startPrefetching() async {
-    for (var i = 0; i < _prefetchCount; i++) {
-      final nextIndex = _currentIndex + i;
-      if (nextIndex < widget.dialogues.length) {
-        _prefetchAudio(nextIndex);
-      }
-    }
-  }
-
-  Future<void> _prefetchAudio(int index) async {
-    if (_audioCache.containsKey(index) || 
-        _prefetchingIndices.contains(index) || 
-        index >= widget.dialogues.length) {
-      return;
-    }
-
-    _prefetchingIndices.add(index);
-    try {
-      final audio = await _synthesizeAudio(widget.dialogues[index]);
-      if (!_isDisposed) {
-        _audioCache[index] = audio;
-      }
-    } catch (e) {
-      print('Prefetch error for index $index: $e');
-    } finally {
-      _prefetchingIndices.remove(index);
-    }
-  }
-
-  Future<BytesSource> _synthesizeAudio(ScriptLine line) async {
-    final speakerId = line.characterType == 'ボケ' ? widget.bokeVoice : widget.tsukkomiVoice;
-    
-    try {
-      final response = await http.post(
-        Uri.parse('http://localhost:8000/synthesis'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'text': line.text,
-          'speaker_id': speakerId,
-        }),
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        return BytesSource(response.bodyBytes);
-      }
-      throw Exception('音声合成エラー: ${response.statusCode}');
-    } catch (e) {
-      throw Exception('音声合成リクエストエラー: $e');
-    }
-  }
-
-  Future<void> _playAudio(ScriptLine line, BytesSource audioSource) async {
-    final completer = Completer<void>();
-    _audioCompleters[_currentIndex] = completer;
-
-    final currentPlayer = _audioPlayerPool[_currentPlayerIndex];
-    _currentPlayerIndex = (_currentPlayerIndex + 1) % _audioPlayerPool.length;
-
-    try {
-      await currentPlayer.stop();
-      final subscription = currentPlayer.onPlayerComplete.listen((_) {
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      });
-
-      // 音声再生開始
-      await currentPlayer.play(audioSource);
-      await currentPlayer.setPlaybackRate(line.speed);
-      
-      // 音声再生と timing を並行して待つ
-      await Future.wait([
-        completer.future,
-        if (line.timing > 0)
-          Future.delayed(Duration(milliseconds: (line.timing * 1000).round())),
-      ]);
-      
-      subscription.cancel();
-    } catch (e) {
-      print('Audio playback error: $e');
-      if (!completer.isCompleted) {
-        completer.completeError(e);
-      }
-    }
-  }
-
-  Future<void> _startAnimation() async {
-    if (_currentIndex >= widget.dialogues.length) {
-      widget.onComplete();
-      return;
-    }
-
-    if (_isDisposed) return;
-
-    setState(() => _isAnimating = true);
-    
-    final currentLine = widget.dialogues[_currentIndex];
-
-    try {
-      BytesSource? audioSource = _audioCache[_currentIndex];
-      if (audioSource == null) {
-        audioSource = await _synthesizeAudio(currentLine);
-        _audioCache[_currentIndex] = audioSource;
-      }
-
-      await _playAudio(currentLine, audioSource);
-
-      if (_isDisposed) return;
-
-      setState(() {
-        _isAnimating = false;
-        _currentIndex++;
-      });
-
-      _progressController?.add(_currentIndex / widget.dialogues.length);
-      
-      _audioCache.removeWhere((key, _) => key < _currentIndex - 1);
-      
-      _prefetchAudio(_currentIndex + _prefetchCount);
-
-      await Future.delayed(const Duration(milliseconds: 300));
-      _startAnimation();
-    } catch (e) {
-      if (!_isDisposed) {
-        setState(() => _isAnimating = false);
-        print('Animation error: $e');
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _isDisposed = true;
-    _bgmPlayer?.dispose();
-    for (var player in _audioPlayerPool) {
-      player.dispose();
-    }
-    for (var completer in _audioCompleters.values) {
-      if (!completer.isCompleted) {
-        completer.complete();
-      }
-    }
-    _progressController?.close();
-    _audioCache.clear();
-    _audioCompleters.clear();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (_currentIndex >= widget.dialogues.length) {
-      return const SizedBox.shrink();
-    }
+    return AnimatedBuilder(
+      animation: viewModel,
+      builder: (context, child) {
+        if (viewModel.dialogueCurrentIndex >= viewModel.scriptLines.length) {
+          onComplete();
+          return const SizedBox.shrink();
+        }
 
-    final currentLine = widget.dialogues[_currentIndex];
-    final isBokeCharacter = currentLine.characterType == 'ボケ';
+        final currentLine = viewModel.scriptLines[viewModel.dialogueCurrentIndex];
+        final isBokeCharacter = currentLine.characterType == 'ボケ';
 
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: Container(
-        width: double.infinity,
-        color: Colors.white,
-        child: Stack(
-          children: [
-            // キャラクター表示
-            Positioned.fill(
-              child: Stack(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildCharacterImage(
-                        true,
-                        isActive: isBokeCharacter && !_showInitialTitle,
-                      ),
-                      const SizedBox(width: 80),
-                      _buildCharacterImage(
-                        false,
-                        isActive: !isBokeCharacter && !_showInitialTitle,
-                      ),
-                    ],
-                  ),
-                  Center(
-                    child: Image.asset(
-                      'assets/images/center_mike.png',
-                      width: 100,
-                      height: 120,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ],
-              ),
+        return AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Container(
+            width: double.infinity,
+            color: Colors.white,
+            child: Stack(
+              children: [
+                _buildCharacters(isBokeCharacter),
+                if (viewModel.showInitialTitle) 
+                  _buildInitialTitle(),
+                if (viewModel.showNetaTitle) 
+                  _buildNetaTitle(),
+                _buildProgressBar(),
+              ],
             ),
-
-            // タイトル表示のオーバーレイ（アニメーション付き）
-            if (_showInitialTitle)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.7),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        widget.combiName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ).animate().fadeIn(duration: 800.ms),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            widget.bokeName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                            ),
-                          ).animate()
-                           .fadeIn(duration: 800.ms)
-                           .slideX(begin: -0.3, duration: 800.ms),
-                          const Text(
-                            ' / ',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                            ),
-                          ),
-                          Text(
-                            widget.tsukkomiName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 32,
-                            ),
-                          ).animate()
-                           .fadeIn(duration: 800.ms)
-                           .slideX(begin: 0.3, duration: 800.ms),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ).animate()
-               .fadeOut(
-                  duration: 500.ms,
-                  curve: Curves.easeOut,
-                  delay: _musicDuration != null 
-                    ? Duration(milliseconds: _musicDuration!.inMilliseconds - 1500)
-                    : 7500.ms  // BGMがない場合は8秒でフェードアウト
-               ),
-
-            // ネタ名表示（アニメーション付き）
-            if (_showNetaTitle)
-              Positioned(
-                top: 350,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      widget.scriptName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ).animate()
-              .fadeIn(duration: 1000.ms)
-              .slideY(begin: -0.3, duration: 1000.ms)
-              .fadeOut(
-                  duration: 500.ms,
-                  curve: Curves.easeOut,
-                  delay: _musicDuration != null 
-                    ? Duration(milliseconds: _musicDuration!.inMilliseconds - 1500)
-                    : 7500.ms
-              ),
-            // 台詞表示とプログレスバー
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 20,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // if (!_showInitialTitle) _buildDialogueText(currentLine),
-                  // const SizedBox(height: 16),
-                  _buildProgressBar(),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-    // プログレスバー用のウィジェット
-  Widget _buildProgressBar() {
-    return StreamBuilder<double>(
-      stream: _progressController?.stream,
-      initialData: 0.0,
-      builder: (context, snapshot) {
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24),
-          child: LinearProgressIndicator(
-            value: snapshot.data,
-            backgroundColor: Colors.grey[200],
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
           ),
         );
       },
     );
   }
 
-  // 台詞表示用のウィジェット
-  Widget _buildDialogueText(ScriptLine line) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.symmetric(
-        vertical: 12,
-        horizontal: 24,
+  Widget _buildCharacters(bool isBokeCharacter) {
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildCharacterImage(
+                true,
+                isActive: isBokeCharacter && !viewModel.showInitialTitle,
+              ),
+              const SizedBox(width: 80),
+              _buildCharacterImage(
+                false,
+                isActive: !isBokeCharacter && !viewModel.showInitialTitle,
+              ),
+            ],
+          ),
+          Center(
+            child: Image.asset(
+              'assets/images/center_mike.png',
+              width: 100,
+              height: 120,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ],
       ),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        line.text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-        ),
-        textAlign: TextAlign.center,
-      ),
-    ).animate()
-    .fadeIn(duration: 50.ms)
-    .slideY(begin: 0.3, duration: 200.ms, curve: Curves.easeOutQuad);
+    );
   }
 
-
-
   Widget _buildCharacterImage(bool isBoke, {required bool isActive}) {
-      return Expanded(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              height: double.infinity,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(
-                    isBoke ? widget.bokeImagePath : widget.tsukkomiImagePath
-                  ),
-                  fit: BoxFit.contain,
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: double.infinity,
+            decoration: BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage(
+                  isBoke ? viewModel.bokeImage! : viewModel.tsukkomiImage!
                 ),
+                fit: BoxFit.contain,
               ),
-              child: Container(
-                color: isActive ? null : Colors.black.withOpacity(0.3),
-              ),
+            ),
+            child: Container(
+              color: isActive ? null : Colors.black.withOpacity(0.3),
             ),
           ),
         ),
-      )
-      .animate(target: isActive ? 1 : 0)
-      .scale(
-        duration: const Duration(milliseconds: 800),
-        begin: const Offset(0.95, 0.95),
-        end: const Offset(1.05, 1.05),
-      );
-    }
+      ),
+    ).animate(target: isActive ? 1 : 0).scale(
+      duration: const Duration(milliseconds: 800),
+      begin: const Offset(0.95, 0.95),
+      end: const Offset(1.05, 1.05),
+    );
   }
+
+  Widget _buildInitialTitle() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.7),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              viewModel.combiName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 48,
+                fontWeight: FontWeight.bold,
+              ),
+            ).animate().fadeIn(duration: 800.ms),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  viewModel.bokeName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                  ),
+                ).animate()
+                 .fadeIn(duration: 800.ms)
+                 .slideX(begin: -0.3, duration: 800.ms),
+                const Text(
+                  ' / ',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                  ),
+                ),
+                Text(
+                  viewModel.tsukkomiName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                  ),
+                ).animate()
+                 .fadeIn(duration: 800.ms)
+                 .slideX(begin: 0.3, duration: 800.ms),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeOut(
+      duration: 500.ms,
+      curve: Curves.easeOut,
+      delay: viewModel.musicDuration != null 
+        ? Duration(milliseconds: viewModel.musicDuration!.inMilliseconds - 1500)
+        : 7500.ms
+    );
+  }
+
+  Widget _buildNetaTitle() {
+    return Positioned(
+      top: 350,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 12,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            viewModel.scriptName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    ).animate()
+      .fadeIn(duration: 1000.ms)
+      .slideY(begin: -0.3, duration: 1000.ms)
+      .fadeOut(
+        duration: 500.ms,
+        curve: Curves.easeOut,
+        delay: viewModel.musicDuration != null 
+          ? Duration(milliseconds: viewModel.musicDuration!.inMilliseconds - 1500)
+          : 7500.ms
+      );
+  }
+
+  Widget _buildProgressBar() {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 20,
+      child: StreamBuilder<double>(
+        stream: viewModel.dialogueProgress,
+        initialData: 0.0,
+        builder: (context, snapshot) {
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            child: LinearProgressIndicator(
+              value: snapshot.data,
+              backgroundColor: Colors.grey[200],
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}

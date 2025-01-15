@@ -1,22 +1,20 @@
 import 'package:flutter/material.dart';
-import 'views/script_editor_view.dart';
+import 'views/title_view.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '漫才編集台本',
+      title: '漫才台本エディタ',
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        useMaterial3: true,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const ScriptEditorView(),
+      home: TitleView(),
     );
   }
 }
