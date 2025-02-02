@@ -47,7 +47,7 @@ class _CharacterSelectState extends State<CharacterSelect> {
     'assets/images/character/genzou.png',
     'assets/images/character/yasuke.png',
   ];
-  
+
   @override
   void initState() {
     super.initState();

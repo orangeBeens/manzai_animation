@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../models/script_line.dart';
 import '../../viewmodels/script_editor_viewmodel.dart';
 
 class AnimationDialog extends StatelessWidget {
@@ -23,7 +22,8 @@ class AnimationDialog extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final currentLine = viewModel.scriptLines[viewModel.dialogueCurrentIndex];
+        final currentLine =
+            viewModel.scriptLines[viewModel.dialogueCurrentIndex];
         final isBokeCharacter = currentLine.characterType == 'ボケ';
 
         return AspectRatio(
@@ -34,10 +34,8 @@ class AnimationDialog extends StatelessWidget {
             child: Stack(
               children: [
                 _buildCharacters(isBokeCharacter),
-                if (viewModel.showInitialTitle) 
-                  _buildInitialTitle(),
-                if (viewModel.showNetaTitle) 
-                  _buildNetaTitle(),
+                if (viewModel.showInitialTitle) _buildInitialTitle(),
+                if (viewModel.showNetaTitle) _buildNetaTitle(),
                 _buildProgressBar(),
               ],
             ),
@@ -89,8 +87,7 @@ class AnimationDialog extends StatelessWidget {
             decoration: BoxDecoration(
               image: DecorationImage(
                 image: AssetImage(
-                  isBoke ? viewModel.bokeImage! : viewModel.tsukkomiImage!
-                ),
+                    isBoke ? viewModel.bokeImage! : viewModel.tsukkomiImage!),
                 fit: BoxFit.contain,
               ),
             ),
@@ -101,10 +98,10 @@ class AnimationDialog extends StatelessWidget {
         ),
       ),
     ).animate(target: isActive ? 1 : 0).scale(
-      duration: const Duration(milliseconds: 800),
-      begin: const Offset(0.95, 0.95),
-      end: const Offset(1.05, 1.05),
-    );
+          duration: const Duration(milliseconds: 800),
+          begin: const Offset(0.95, 0.95),
+          end: const Offset(1.05, 1.05),
+        );
   }
 
   Widget _buildInitialTitle() {
@@ -132,9 +129,10 @@ class AnimationDialog extends StatelessWidget {
                     color: Colors.white,
                     fontSize: 32,
                   ),
-                ).animate()
-                 .fadeIn(duration: 800.ms)
-                 .slideX(begin: -0.3, duration: 800.ms),
+                )
+                    .animate()
+                    .fadeIn(duration: 800.ms)
+                    .slideX(begin: -0.3, duration: 800.ms),
                 const Text(
                   ' / ',
                   style: TextStyle(
@@ -148,21 +146,22 @@ class AnimationDialog extends StatelessWidget {
                     color: Colors.white,
                     fontSize: 32,
                   ),
-                ).animate()
-                 .fadeIn(duration: 800.ms)
-                 .slideX(begin: 0.3, duration: 800.ms),
+                )
+                    .animate()
+                    .fadeIn(duration: 800.ms)
+                    .slideX(begin: 0.3, duration: 800.ms),
               ],
             ),
           ],
         ),
       ),
     ).animate().fadeOut(
-      duration: 500.ms,
-      curve: Curves.easeOut,
-      delay: viewModel.musicDuration != null 
-        ? Duration(milliseconds: viewModel.musicDuration!.inMilliseconds - 1500)
-        : 7500.ms
-    );
+        duration: 500.ms,
+        curve: Curves.easeOut,
+        delay: viewModel.musicDuration != null
+            ? Duration(
+                milliseconds: viewModel.musicDuration!.inMilliseconds - 1500)
+            : 7500.ms);
   }
 
   Widget _buildNetaTitle() {
@@ -190,16 +189,18 @@ class AnimationDialog extends StatelessWidget {
           ),
         ),
       ),
-    ).animate()
-      .fadeIn(duration: 1000.ms)
-      .slideY(begin: -0.3, duration: 1000.ms)
-      .fadeOut(
-        duration: 500.ms,
-        curve: Curves.easeOut,
-        delay: viewModel.musicDuration != null 
-          ? Duration(milliseconds: viewModel.musicDuration!.inMilliseconds - 1500)
-          : 7500.ms
-      );
+    )
+        .animate()
+        .fadeIn(duration: 1000.ms)
+        .slideY(begin: -0.3, duration: 1000.ms)
+        .fadeOut(
+            duration: 500.ms,
+            curve: Curves.easeOut,
+            delay: viewModel.musicDuration != null
+                ? Duration(
+                    milliseconds:
+                        viewModel.musicDuration!.inMilliseconds - 1500)
+                : 7500.ms);
   }
 
   Widget _buildProgressBar() {

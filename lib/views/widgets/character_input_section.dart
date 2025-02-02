@@ -19,15 +19,15 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
       final tempImage = viewModel.bokeImage;
       viewModel.setBokeImage(viewModel.tsukkomiImage);
       viewModel.setTsukkomiImage(tempImage);
-      
+
       final tempVoice = viewModel.bokeVoice;
       viewModel.setBokeVoice(viewModel.tsukkomiVoice);
       viewModel.setTsukkomiVoice(tempVoice);
-      
+
       final tempName = viewModel.bokeName;
       viewModel.setBokeName(viewModel.tsukkomiName);
       viewModel.setTsukkomiName(tempName);
-      
+
       isSwapped = !isSwapped;
     });
   }
@@ -37,11 +37,12 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
     // viewmodelに設定された値を初期値として使うための、コントローラー
     final viewModel = Provider.of<ScriptEditorViewModel>(context);
     final bokeNameController = TextEditingController(text: viewModel.bokeName);
-    final tsukkomiNameController = TextEditingController(text: viewModel.tsukkomiName);
-    final combiNameController = TextEditingController(text: viewModel.combiName);
-    final scriptNameController = TextEditingController(text: viewModel.scriptName);
-
-
+    final tsukkomiNameController =
+        TextEditingController(text: viewModel.tsukkomiName);
+    final combiNameController =
+        TextEditingController(text: viewModel.combiName);
+    final scriptNameController =
+        TextEditingController(text: viewModel.scriptName);
 
     return Column(
       children: [
@@ -65,7 +66,8 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                     decoration: const InputDecoration(
                       labelText: '声',
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     items: ScriptEditorViewModel.voiceTypeItems,
                     onChanged: (value) => viewModel.setBokeVoice(value!),
@@ -77,13 +79,14 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                     decoration: const InputDecoration(
                       labelText: '名前',
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                   ),
                 ],
               ),
             ),
-            
+
             // マイク画像
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -105,7 +108,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                 ],
               ),
             ),
-            
+
             // ツッコミのキャラクター設定
             SizedBox(
               width: 280,
@@ -122,7 +125,8 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                     decoration: const InputDecoration(
                       labelText: '声',
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     items: ScriptEditorViewModel.voiceTypeItems,
                     onChanged: (value) => viewModel.setTsukkomiVoice(value!),
@@ -134,7 +138,8 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                     decoration: const InputDecoration(
                       labelText: '名前',
                       border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                   ),
                 ],
@@ -143,7 +148,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
           ],
         ),
         const SizedBox(height: 16),
-        
+
         // コンビ名とネタ名の入力欄
         Row(
           children: [
@@ -161,7 +166,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
             Expanded(
               child: TextField(
                 controller: scriptNameController,
-                onChanged: viewModel.setScriptName, 
+                onChanged: viewModel.setScriptName,
                 decoration: const InputDecoration(
                   labelText: 'ネタ名',
                   border: OutlineInputBorder(),
@@ -178,32 +183,39 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: viewModel.selectedMusic,  // ViewModelから値を取得
+                value: viewModel.selectedMusic, // ViewModelから値を取得
                 decoration: const InputDecoration(
                   labelText: '出囃子選択',
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
-                items: ScriptEditorViewModel.musicList.map((String path) {  // ViewModelのstaticリストを使用
+                items: ScriptEditorViewModel.musicList.map((String path) {
+                  // ViewModelのstaticリストを使用
                   return DropdownMenuItem<String>(
                     value: path,
-                    child: Text(viewModel.getMusicDisplayName(path)),  // ViewModelのメソッドを使用
+                    child: Text(viewModel
+                        .getMusicDisplayName(path)), // ViewModelのメソッドを使用
                   );
                 }).toList(),
                 onChanged: (value) {
-                  viewModel.setSelectedMusic(value);  // ViewModelのメソッドを使用して更新
+                  viewModel.setSelectedMusic(value); // ViewModelのメソッドを使用して更新
                 },
               ),
             ),
             const SizedBox(width: 16),
             ElevatedButton.icon(
-              onPressed: viewModel.selectedMusic != null ? () => viewModel.playMusic() : null,
+              onPressed: viewModel.selectedMusic != null
+                  ? () => viewModel.playMusic()
+                  : null,
               icon: const Icon(Icons.play_arrow),
               label: const Text('再生'),
             ),
             const SizedBox(width: 8),
             ElevatedButton.icon(
-              onPressed: viewModel.selectedMusic != null ? () => viewModel.stopMusic() : null,
+              onPressed: viewModel.selectedMusic != null
+                  ? () => viewModel.stopMusic()
+                  : null,
               icon: const Icon(Icons.stop),
               label: const Text('停止'),
             ),

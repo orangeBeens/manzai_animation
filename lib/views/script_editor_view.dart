@@ -14,7 +14,9 @@ class ScriptEditorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => ScriptEditorViewModel(scriptData: scriptData),//ここのコードにより、セリフ追加/再生ボタンなどすべての子widgetがviewmodelにアクセスできるようになる。
+      create: (_) => ScriptEditorViewModel(
+          scriptData:
+              scriptData), //ここのコードにより、セリフ追加/再生ボタンなどすべての子widgetがviewmodelにアクセスできるようになる。
       child: Scaffold(
         appBar: AppBar(
           title: const Text('漫才台本エディタ'),
@@ -24,14 +26,14 @@ class ScriptEditorView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              CharacterInputSection(),//キャラクター、コンビ名入力
+              CharacterInputSection(), //キャラクター、コンビ名入力
               SizedBox(height: 16),
-              ScriptInputSection(),//台本入力
+              ScriptInputSection(), //台本入力
               SizedBox(height: 16),
-              TimingControlSection(),//間とスピードの入力
+              TimingControlSection(), //間とスピードの入力
               SizedBox(height: 16),
-              ScriptListSection(),//台本表示
-              ActionButtonsSection(),//台本再生、動画生成
+              ScriptListSection(), //台本表示
+              ActionButtonsSection(), //台本再生、動画生成
             ],
           ),
         ),
