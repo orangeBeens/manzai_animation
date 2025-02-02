@@ -18,8 +18,61 @@ import '../models/script_line.dart';
 /// スクリプトエディタのViewModel - 状態管理とビジネスロジックを担当
 class ScriptEditorViewModel extends ChangeNotifier {
   // コンストラクタ - ViewModelの初期化時にTTSも初期化
-  ScriptEditorViewModel() {
+  ScriptEditorViewModel({Map<String, dynamic>? scriptData}) {
     _initTts();
+    if (scriptData != null) {
+      // タイトルと名前の設定
+      _scriptName = scriptData['title'];           
+      _combiName = scriptData['combi_name'];         
+      _bokeName = scriptData['left_chara'];          
+      _tsukkomiName = scriptData['right_chara'];     
+      
+      // 画像パスの設定
+      _bokeImage = scriptData['left_chara_path'];    
+      _tsukkomiImage = scriptData['right_chara_path'];
+      
+      // BGMの設定
+      _selectedMusic = scriptData['selectedMusic']; 
+      print('Loaded script data: $scriptData'); // JSONデータの確認
+      print('Initialized title: $_scriptName'); // 初期化された値の確認
+      print('Initialized combi name: $_combiName');
+      print('Initialized boke name: $_bokeName');
+      print('Initialized tsukkomi name: $_tsukkomiName');
+
+      // vvox speaker_idの設定
+      if (scriptData['voices']?.isNotEmpty == true) {
+        final voices = scriptData['voices'] as List<dynamic>;
+        final bokeVoice = voices.firstWhere(
+          (v) => v['characterType'] == 'left',
+          orElse: () => {'speaker_id': 1}
+        );
+        final tsukkomiVoice = voices.firstWhere(
+          (v) => v['characterType'] == 'right',
+          orElse: () => {'speaker_id': 2}
+        );
+        
+        _bokeVoice = bokeVoice['speaker_id'] ?? 1;
+        _tsukkomiVoice = tsukkomiVoice['speaker_id'] ?? 2;
+      }
+
+      // 台本データの初期化
+      final voices = scriptData['voices'] as List<dynamic>;
+      _scriptLines.clear();
+      for (var voice in voices) {
+        _scriptLines.add(ScriptLine(
+          text: voice['text'] ?? '',
+          characterType: voice['characterType'] == 'left' ? 'ボケ' : 'ツッコミ',
+          timing: voice['pre_phoneme_length']?.toDouble() ?? 0.1,
+          speed: voice['speed_scale']?.toDouble() ?? 1.0,
+          volume: voice['volume_scale']?.toDouble() ?? 1.0,
+          pitch: voice['pitch_scale']?.toDouble() ?? 0.0,
+          intonation: voice['intonation_scale']?.toDouble() ?? 0.0,
+        ));
+      }
+      print('Initialized state - Title: $_scriptName, Combi: $_combiName');  // デバッグ用
+      notifyListeners();
+    }
+    
   }
 
   // === 定数定義 ===
@@ -512,51 +565,6 @@ class ScriptEditorViewModel extends ChangeNotifier {
   }
 
 
-  Future<void> saveScriptData(BuildContext context) async {
-  final scriptData = {
-    'title': _scriptName,
-    'combiName': _combiName,
-    'bokeName': _bokeName,
-    'tsukkomiName': _tsukkomiName,
-    'bokeVoice': _bokeVoice,
-    'tsukkomiVoice': _tsukkomiVoice,
-    'bokeImage': _bokeImage,
-    'tsukkomiImage': _tsukkomiImage,
-    'selectedMusic': _selectedMusic,
-    'scriptLines': _scriptLines.map((line) => {
-      'characterType': line.characterType,
-      'timing': line.timing,
-      'speed': line.speed,
-      'text': line.text,
-      'volume': line.volume,
-      'pitch': line.pitch,
-      'intonation': line.intonation,
-    }).toList(),
-    'createdAt': DateTime.now().toIso8601String(),
-  };
-
-  try {
-    final storage = html.window.localStorage;
-    final existingData = storage['saved_scripts'] ?? '[]';
-    final scripts = List<dynamic>.from(jsonDecode(existingData));
-    scripts.add(scriptData);
-    storage['saved_scripts'] = jsonEncode(scripts);
-    notifyListeners();
-
-    // スナックバーでメッセージを表示
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    scaffoldMessenger.showSnackBar(
-      const SnackBar(
-        content: Text('台本を保存しました'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  } catch (e) {
-    _errorMessage = '保存に失敗しました: $e';
-    notifyListeners();
-  }
-  }
-
 
   // === アニメーションダイアログ ===
   void startAnimation(BuildContext context) {
@@ -579,23 +587,48 @@ class ScriptEditorViewModel extends ChangeNotifier {
   initializeAnimationDialog();
 }
 
-  // === CSV出力 ===
-  Future<void> exportCsv() async {
-    final csvContent = _scriptLines.map((line) =>
-      '${line.characterType},${line.text},${line.timing},${line.speed}'
-    ).join('\n');
-    
-    final withHeader = 'キャラクター,セリフ,間(秒),スピード(x)\n$csvContent';
-    final bytes = utf8.encode(withHeader);
-    final blob = html.Blob([bytes]);
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    
-    // ダウンロードリンクの作成と実行
-    html.AnchorElement(href: url)
-      ..setAttribute('download', '台本_${DateTime.now().millisecondsSinceEpoch}.csv')
-      ..click();
+  // === 漫才アニメ保存 ===
+  Future<void> saveManzaiData(BuildContext context) async {
+    try {
+      final manzaiData = {
+        "title": _scriptName,
+        "combi_name": _combiName,
+        "left_chara": _bokeName,
+        "right_chara": _tsukkomiName,
+        "left_chara_path": _bokeImage,
+        "right_chara_path": _tsukkomiImage,
+        "selectedMusic": _selectedMusic,
+        "voices": _scriptLines.map((line) => {
+          "text": line.text,
+          "speaker_id": line.characterType == 'ボケ' ? _bokeVoice : _tsukkomiVoice,
+          "characterType": line.characterType == 'ボケ' ? "left" : "right",
+          "speed_scale": line.speed,
+          "volume_scale": line.volume,
+          "pitch_scale": line.pitch,
+          "intonation_scale": line.intonation,
+          "pre_phoneme_length": line.timing,
+          "post_phoneme_length": 0.0
+        }).toList()
+      };
 
-    html.Url.revokeObjectUrl(url);
+      final response = await http.post(
+        Uri.parse('http://localhost:8000/save_manzai_script'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(manzaiData),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('漫才データを保存しました'))
+        );
+      } else {
+        throw Exception('サーバーエラー: ${response.statusCode}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存に失敗しました: $e'), backgroundColor: Colors.red)
+      );
+    }
   }
   // === 台本出力（.md） ===
   Future<void> exportMarkdown() async {

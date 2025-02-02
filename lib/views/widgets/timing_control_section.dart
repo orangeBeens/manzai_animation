@@ -8,7 +8,7 @@ class TimingControlSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<ScriptEditorViewModel>(context);
-    
+
     return Row(
       children: [
         Expanded(
@@ -22,8 +22,8 @@ class TimingControlSection extends StatelessWidget {
                     child: Slider(
                       value: viewModel.selectedTiming,
                       min: -1.0,
-                      max: 10.0,
-                      divisions: 100,
+                      max: 5.0,
+                      divisions: 60,
                       label: viewModel.selectedTiming.toStringAsFixed(1),
                       onChanged: viewModel.setSelectedTiming,
                     ),
@@ -69,7 +69,8 @@ class TimingControlSection extends StatelessWidget {
               labelText: '声量',
               border: OutlineInputBorder(),
             ),
-            items: [10.0, 7.0, 5.0, 3.0, 2.0, 1.5, 1.0, 0.75, 0.5].map((volume) {
+            items:
+                [10.0, 7.0, 5.0, 3.0, 2.0, 1.5, 1.0, 0.75, 0.5].map((volume) {
               return DropdownMenuItem(
                 value: volume,
                 child: Text('${volume}倍'),
@@ -81,7 +82,7 @@ class TimingControlSection extends StatelessWidget {
               }
             },
           ),
-        ),  
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: DropdownButtonFormField<double>(
@@ -103,7 +104,7 @@ class TimingControlSection extends StatelessWidget {
               }
             },
           ),
-        ),  
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -133,7 +134,7 @@ class TimingControlSection extends StatelessWidget {
               ),
             ],
           ),
-        ),        
+        ),
       ],
     );
   }

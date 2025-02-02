@@ -1,0 +1,55 @@
+{
+  "title": "ゲゲゲ",
+  "combi_name": "じゃじゃじゃ",
+  "left_chara": "やあやあ",
+  "right_chara": "ぬぬぬ",
+  "left_chara_path": "assets/images/character/kuruma.png",
+  "right_chara_path": "assets/images/character/kemuri.png",
+  "selectedMusic": "assets/music/maou_41_honeybaby_magicalgirl.mp3",
+  "voices": [
+    {
+      "text": "いいかんじ",
+      "speaker_id": 1,
+      "characterType": "left",
+      "speed_scale": 1,
+      "volume_scale": 1,
+      "pitch_scale": 0,
+      "intonation_scale": 0,
+      "pre_phoneme_length": 0.1,
+      "post_phoneme_length": 0
+    },
+    {
+      "text": "ブラウザ",
+      "speaker_id": 2,
+      "characterType": "right",
+      "speed_scale": 1,
+      "volume_scale": 1,
+      "pitch_scale": 0,
+      "intonation_scale": 0,
+      "pre_phoneme_length": 0.1,
+      "post_phoneme_length": 0
+    },
+    {
+      "text": "せっせと",
+      "speaker_id": 1,
+      "characterType": "left",
+      "speed_scale": 1,
+      "volume_scale": 1,
+      "pitch_scale": 0,
+      "intonation_scale": 0,
+      "pre_phoneme_length": 0.1,
+      "post_phoneme_length": 0
+    },
+    {
+      "text": "煉獄",
+      "speaker_id": 1,
+      "characterType": "left",
+      "speed_scale": 1.5,
+      "volume_scale": 0.75,
+      "pitch_scale": 0,
+      "intonation_scale": 0,
+      "pre_phoneme_length": 0.76,
+      "post_phoneme_length": 0
+    }
+  ]
+}

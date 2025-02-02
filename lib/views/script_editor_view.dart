@@ -8,12 +8,13 @@ import './widgets/script_list_section.dart';
 import './widgets/action_buttons_section.dart';
 
 class ScriptEditorView extends StatelessWidget {
-  const ScriptEditorView({super.key});
+  final Map<String, dynamic>? scriptData;
+  const ScriptEditorView({super.key, this.scriptData});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => ScriptEditorViewModel(),//ここのコードにより、セリフ追加/再生ボタンなどすべての子widgetがviewmodelにアクセスできるようになる。
+      create: (_) => ScriptEditorViewModel(scriptData: scriptData),//ここのコードにより、セリフ追加/再生ボタンなどすべての子widgetがviewmodelにアクセスできるようになる。
       child: Scaffold(
         appBar: AppBar(
           title: const Text('漫才台本エディタ'),

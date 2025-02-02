@@ -34,7 +34,14 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
 
   @override
   Widget build(BuildContext context) {
+    // viewmodelに設定された値を初期値として使うための、コントローラー
     final viewModel = Provider.of<ScriptEditorViewModel>(context);
+    final bokeNameController = TextEditingController(text: viewModel.bokeName);
+    final tsukkomiNameController = TextEditingController(text: viewModel.tsukkomiName);
+    final combiNameController = TextEditingController(text: viewModel.combiName);
+    final scriptNameController = TextEditingController(text: viewModel.scriptName);
+
+
 
     return Column(
       children: [
@@ -50,6 +57,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                   CharacterSelect(
                     characterType: 'ボケ',
                     onImageSelected: viewModel.setBokeImage,
+                    initialImage: viewModel.bokeImage,
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
@@ -64,6 +72,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                   ),
                   const SizedBox(height: 8),
                   TextField(
+                    controller: bokeNameController,
                     onChanged: viewModel.setBokeName,
                     decoration: const InputDecoration(
                       labelText: '名前',
@@ -105,6 +114,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                   CharacterSelect(
                     characterType: 'ツッコミ',
                     onImageSelected: viewModel.setTsukkomiImage,
+                    initialImage: viewModel.tsukkomiImage,
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
@@ -119,6 +129,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
                   ),
                   const SizedBox(height: 8),
                   TextField(
+                    controller: tsukkomiNameController,
                     onChanged: viewModel.setTsukkomiName,
                     decoration: const InputDecoration(
                       labelText: '名前',
@@ -138,6 +149,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
           children: [
             Expanded(
               child: TextField(
+                controller: combiNameController,
                 onChanged: viewModel.setCombiName,
                 decoration: const InputDecoration(
                   labelText: 'コンビ名',
@@ -148,6 +160,7 @@ class _CharacterInputSectionState extends State<CharacterInputSection> {
             const SizedBox(width: 16),
             Expanded(
               child: TextField(
+                controller: scriptNameController,
                 onChanged: viewModel.setScriptName, 
                 decoration: const InputDecoration(
                   labelText: 'ネタ名',

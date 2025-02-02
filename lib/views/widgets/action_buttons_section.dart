@@ -94,7 +94,7 @@ class ActionButtonsSection extends StatelessWidget {
           child: ElevatedButton(
             onPressed: () async {
               print("[debug]onPressed 漫才保存ボタン");
-              viewModel.saveScriptData(context);
+              viewModel.saveManzaiData(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pink,

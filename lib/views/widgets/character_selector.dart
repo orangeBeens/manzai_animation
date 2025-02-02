@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 class CharacterSelect extends StatefulWidget {
   final String characterType;
   final Function(String) onImageSelected;
+  final String? initialImage;
 
   const CharacterSelect({
     required this.characterType,
     required this.onImageSelected,
+    this.initialImage,
     super.key,
   });
 
@@ -45,6 +47,15 @@ class _CharacterSelectState extends State<CharacterSelect> {
     'assets/images/character/genzou.png',
     'assets/images/character/yasuke.png',
   ];
+  
+  @override
+  void initState() {
+    super.initState();
+    // 初期値が設定されている場合は反映
+    if (widget.initialImage != null) {
+      selectedImage = widget.initialImage;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

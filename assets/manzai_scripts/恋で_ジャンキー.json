@@ -1,0 +1,33 @@
+{
+  "title": "恋で",
+  "combi_name": "ジャンキー",
+  "left_chara": "うう",
+  "right_chara": "ああ",
+  "left_chara_path": "assets/images/character/kuruma.png",
+  "right_chara_path": "assets/images/character/kemuri.png",
+  "selectedMusic": "assets/music/kaeruno-piano.mp3",
+  "voices": [
+    {
+      "text": "いいかんじ",
+      "speaker_id": 1,
+      "characterType": "left",
+      "speed_scale": 1,
+      "volume_scale": 1,
+      "pitch_scale": 0,
+      "intonation_scale": 0,
+      "pre_phoneme_length": 0.1,
+      "post_phoneme_length": 0
+    },
+    {
+      "text": "ブラウザ",
+      "speaker_id": 42,
+      "characterType": "right",
+      "speed_scale": 1,
+      "volume_scale": 1,
+      "pitch_scale": 0,
+      "intonation_scale": 0,
+      "pre_phoneme_length": 0.1,
+      "post_phoneme_length": 0
+    }
+  ]
+}
