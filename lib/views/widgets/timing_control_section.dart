@@ -1,13 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/script_editor_viewmodel.dart';
+import '../../utils/logger_config.dart';
 
 class TimingControlSection extends StatelessWidget {
+  static final _logger = LoggerConfig.getLogger('TimingControlSection');
+
   const TimingControlSection({Key? key}) : super(key: key);
+
+  Future<void> _handleError(BuildContext context, String action, Object error,
+      StackTrace? stackTrace) {
+    _logger.severe('Error during $action', error, stackTrace);
+    return Future.value(ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('${action}の設定に失敗しました'))));
+  }
+
+  void _executeControlChange(
+      BuildContext context, String action, Function() operation) {
+    try {
+      _logger.info('Changing $action');
+      operation();
+      _logger.info('Successfully changed $action');
+    } catch (e, stackTrace) {
+      _handleError(context, action, e, stackTrace);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<ScriptEditorViewModel>(context);
+    _logger.info('Building TimingControlSection');
 
     return Row(
       children: [
@@ -25,7 +47,11 @@ class TimingControlSection extends StatelessWidget {
                       max: 5.0,
                       divisions: 60,
                       label: viewModel.selectedTiming.toStringAsFixed(1),
-                      onChanged: viewModel.setSelectedTiming,
+                      onChanged: (value) => _executeControlChange(
+                        context,
+                        '間の設定',
+                        () => viewModel.setSelectedTiming(value),
+                      ),
                     ),
                   ),
                   SizedBox(
@@ -54,9 +80,13 @@ class TimingControlSection extends StatelessWidget {
                 child: Text('${speed}x'),
               );
             }).toList(),
-            onChanged: (double? value) {
+            onChanged: (value) {
               if (value != null) {
-                viewModel.setSelectedSpeed(value);
+                _executeControlChange(
+                  context,
+                  'スピードの設定',
+                  () => viewModel.setSelectedSpeed(value),
+                );
               }
             },
           ),
@@ -76,9 +106,13 @@ class TimingControlSection extends StatelessWidget {
                 child: Text('${volume}倍'),
               );
             }).toList(),
-            onChanged: (double? value) {
+            onChanged: (value) {
               if (value != null) {
-                viewModel.setSelectedVolume(value);
+                _executeControlChange(
+                  context,
+                  '声量の設定',
+                  () => viewModel.setSelectedVolume(value),
+                );
               }
             },
           ),
@@ -97,10 +131,16 @@ class TimingControlSection extends StatelessWidget {
                 child: Text('${pitch}倍'),
               );
             }).toList(),
-            onChanged: (double? value) {
+            onChanged: (value) {
               if (value != null) {
-                print("Selected pitch value: $value"); // デバッグプリントを追加
-                viewModel.setSelectedPitch(value);
+                _executeControlChange(
+                  context,
+                  '声の高さの設定',
+                  () {
+                    _logger.info('Setting pitch to: $value');
+                    viewModel.setSelectedPitch(value);
+                  },
+                );
               }
             },
           ),
@@ -120,7 +160,11 @@ class TimingControlSection extends StatelessWidget {
                       max: 3.0,
                       divisions: 30,
                       label: viewModel.selectedIntonation.toStringAsFixed(1),
-                      onChanged: viewModel.setSelectedIntonation,
+                      onChanged: (value) => _executeControlChange(
+                        context,
+                        '抑揚の設定',
+                        () => viewModel.setSelectedIntonation(value),
+                      ),
                     ),
                   ),
                   SizedBox(

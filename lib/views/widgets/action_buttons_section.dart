@@ -1,21 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/script_editor_viewmodel.dart';
-
+import '../../utils/logger_config.dart';
 
 class ActionButtonsSection extends StatelessWidget {
+  static final _logger = LoggerConfig.getLogger('ActionButtonsSection');
+
   const ActionButtonsSection({Key? key}) : super(key: key);
+
+  Future<void> _handleError(BuildContext context, String action, Object error,
+      StackTrace? stackTrace) {
+    _logger.severe('Error during $action', error, stackTrace);
+    return Future.value(ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('${action}に失敗しました'))));
+  }
+
+  Future<void> _executeAction(BuildContext context, String action,
+      Future<void> Function() operation) async {
+    try {
+      _logger.info('Starting $action');
+      await operation();
+      _logger.info('Completed $action');
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('${action}が完了しました')));
+    } catch (e, stackTrace) {
+      await _handleError(context, action, e, stackTrace);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<ScriptEditorViewModel>(context);
-    
+
     return Row(
       children: [
         // 台本保存ボタン
         Expanded(
           child: ElevatedButton(
-            onPressed: viewModel.exportMarkdown,
+            onPressed: () => _executeAction(
+              context,
+              '台本保存',
+              () => viewModel.exportMarkdown(),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
@@ -35,10 +61,11 @@ class ActionButtonsSection extends StatelessWidget {
         // 音声保存(mp3)
         Expanded(
           child: ElevatedButton(
-            onPressed: () async {
-              print("[debug]onPressed mp3保存ボタン");
-              viewModel.createAudioFile();
-            },
+            onPressed: () => _executeAction(
+              context,
+              'MP3保存',
+              () => viewModel.createAudioFile(),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               foregroundColor: Colors.white,
@@ -59,20 +86,14 @@ class ActionButtonsSection extends StatelessWidget {
         Expanded(
           child: ElevatedButton(
             onPressed: viewModel.isGenerating
-              ? null
-              : () async {
-                  try {
-                    // アニメーションダイアログを表示
-                    viewModel.startAnimation(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('アニメーションを開始しました')),
-                    );
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('エラーが発生しました: $e')),
-                    );
-                  }
-                },
+                ? null
+                : () => _executeAction(
+                      context,
+                      'アニメーション再生',
+                      () async {
+                        await viewModel.startAnimation(context);
+                      },
+                    ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pink,
               foregroundColor: Colors.white,
@@ -92,10 +113,11 @@ class ActionButtonsSection extends StatelessWidget {
         // 漫才保存
         Expanded(
           child: ElevatedButton(
-            onPressed: () async {
-              print("[debug]onPressed 漫才保存ボタン");
-              viewModel.saveManzaiData(context);
-            },
+            onPressed: () => _executeAction(
+              context,
+              '漫才保存',
+              () => viewModel.saveManzaiData(context),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pink,
               foregroundColor: Colors.white,
